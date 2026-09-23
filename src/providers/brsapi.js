@@ -11,6 +11,14 @@ function pick(row, names, fallback = 0) {
   return fallback;
 }
 
+export function brsHeaders(config) {
+  return {
+    accept: 'application/json',
+    'accept-language': 'fa-IR,fa;q=0.9,en;q=0.8',
+    'user-agent': config.userAgent
+  };
+}
+
 export function normalizeBrsSymbol(row) {
   const hasOrderBookData = ['pd1','qd1','po1','qo1','bestBuyPrice','bestBuyVolume','bestSellPrice','bestSellVolume'].some(key => row?.[key] !== undefined && row[key] !== null);
   const hasBuyerPowerData = ['Buy_I_Volume','buyVolumeReal','buy_I_Volume','realBuyVolume'].some(key => row?.[key] !== undefined && row[key] !== null)
@@ -105,7 +113,7 @@ export async function fetchBrsSymbols(config, beforeRequest = null) {
   }
   const url = new URL(allSymbolsPath, baseUrl);
   url.searchParams.set('type', String(allSymbolsType || 1));
-  const headers = { accept: 'application/json' };
+  const headers = brsHeaders(config);
   if (apiKeyQuery) url.searchParams.set(apiKeyQuery, apiKey);
   else headers[apiKeyHeader] = apiKey;
 
@@ -128,7 +136,7 @@ export async function fetchBrsWatchlist(config, watchlist, beforeRequest = null)
     url.searchParams.set('key', apiKey);
     url.searchParams.set('l18', symbol);
     beforeRequest?.('symbol');
-    const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
+    const response = await fetch(url, { headers: brsHeaders(config), signal: AbortSignal.timeout(12000) });
     if (!response.ok) throw new Error(`BRSAPI Symbol ${symbol} HTTP ${response.status}`);
     const normalized = normalizeBrsSymbol(await response.json());
     if (normalized.symbol) results.push(normalized);
@@ -161,7 +169,7 @@ export async function fetchBrsIndex(config, type = 1, beforeRequest = null) {
   url.searchParams.set('key', apiKey);
   url.searchParams.set('type', String(type));
   beforeRequest?.('index');
-  const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
+  const response = await fetch(url, { headers: brsHeaders(config), signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error(`BRSAPI Index HTTP ${response.status}`);
   return normalizeBrsIndex(await response.json());
 }
@@ -188,7 +196,7 @@ export async function fetchBrsCandles(config, symbol, type = 3, count = 120, bef
   url.searchParams.set('l18', symbol);
   url.searchParams.set('count', String(count));
   beforeRequest?.('candlestick');
-  const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
+  const response = await fetch(url, { headers: brsHeaders(config), signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw new Error(`BRSAPI Candlestick ${symbol} HTTP ${response.status}`);
   return normalizeCandles(await response.json()).slice(0, count);
 }

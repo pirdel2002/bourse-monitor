@@ -50,6 +50,7 @@ docker compose up -d --build
 ```env
 DATA_PROVIDER=brsapi
 BRS_API_KEY=...
+BRS_USER_AGENT=Mozilla/5.0 ... Chrome/... Safari/537.36
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_CHAT_ID=...
 ```
@@ -71,6 +72,8 @@ TELEGRAM_CHAT_ID=...
 مقادیر را دقیقاً مطابق بسته BRSAPI خود در `.env` تنظیم کنید. `MARKET_CACHE_SECONDS=150` باعث می‌شود چند شرط هم‌زمان فقط یک درخواست `AllSymbols` مصرف کنند. جست‌وجوی نماد نیز از دیتابیس محلی انجام می‌شود و به‌ازای هر حرف API را فراخوانی نمی‌کند.
 
 اگر سهمیه تمام شود، برنامه درخواست را ارسال نمی‌کند و خطای `API_QUOTA_EXCEEDED` ثبت می‌شود.
+
+تمام درخواست‌های BRSAPI با `User-Agent` صریح و قابل تنظیم ارسال می‌شوند. مقدار پیش‌فرض مشابه Chrome دسکتاپ است. آن را حذف نکنید؛ درخواست بدون `User-Agent` معتبر ممکن است باعث مسدودی IP سرور شود.
 
 ## شرط نوشتاری
 

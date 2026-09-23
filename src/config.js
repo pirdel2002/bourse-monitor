@@ -58,7 +58,8 @@ export function getConfig() {
       indexPath: process.env.BRS_INDEX_PATH || '/Tsetmc/Index.php',
       candlePath: process.env.BRS_CANDLE_PATH || '/Tsetmc/Candlestick.php',
       apiKeyHeader: process.env.BRS_API_KEY_HEADER || 'X-API-Key',
-      apiKeyQuery: process.env.BRS_API_KEY_QUERY || ''
+      apiKeyQuery: process.env.BRS_API_KEY_QUERY || '',
+      userAgent: process.env.BRS_USER_AGENT || 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
     },
     telegram: {
       token: process.env.TELEGRAM_BOT_TOKEN || '',

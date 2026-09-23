@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeBrsSymbol, normalizeBrsIndex, normalizeCandles } from '../src/providers/brsapi.js';
+import { normalizeBrsSymbol, normalizeBrsIndex, normalizeCandles, brsHeaders } from '../src/providers/brsapi.js';
+
+test('uses an explicit browser User-Agent for every BRSAPI request', () => {
+  const headers = brsHeaders({ userAgent: 'Mozilla/5.0 TestBrowser' });
+  assert.equal(headers['user-agent'], 'Mozilla/5.0 TestBrowser');
+  assert.equal(headers.accept, 'application/json');
+});
 
 test('normalizes the documented comprehensive symbol fields', () => {
   const row = normalizeBrsSymbol({
