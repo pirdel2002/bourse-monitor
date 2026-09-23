@@ -1,0 +1,5 @@
+.env
+data/*.db
+data/*.db-*
+node_modules/
+coverage/
