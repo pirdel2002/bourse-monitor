@@ -32,7 +32,8 @@ for value in "${BRS_API_KEY:-}" "${TELEGRAM_BOT_TOKEN:-}" "${TELEGRAM_CHAT_ID:-}
   case "$value" in *$'\n'*|*$'\r'*) echo "Secrets cannot contain line breaks." >&2; exit 1;; esac
 done
 {
-  printf 'PORT=%s\n' "$APP_PORT"
+  printf 'PORT=3000\n'
+  printf 'HOST_PORT=%s\n' "$APP_PORT"
   printf 'BIND_ADDRESS=%s\n' "$BIND_ADDRESS"
   printf 'APP_NAME=پایش خودکار بورس\n'
   printf 'ADMIN_TOKEN=%s\n' "$ADMIN_TOKEN_VALUE"
