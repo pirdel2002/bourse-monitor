@@ -22,10 +22,12 @@
 دستور زیر برنامه را در `/opt/bourse-monitor` نصب می‌کند و فقط روی `127.0.0.1:3000` در دسترس قرار می‌دهد:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/pirdel2002/bourse-monitor/main/install.sh | sudo env BRS_API_KEY='YOUR_KEY' TELEGRAM_BOT_TOKEN='YOUR_BOT_TOKEN' TELEGRAM_CHAT_ID='YOUR_CHAT_ID' bash
+curl -fsSL https://raw.githubusercontent.com/pirdel2002/bourse-monitor/main/install.sh | sudo bash
 ```
 
-اسکریپت یک `ADMIN_TOKEN` تصادفی تولید و در پایان فقط یک‌بار نمایش می‌دهد. برای بازکردن امن داشبورد از کامپیوتر خود:
+اسکریپت کلید BRSAPI، توکن ربات و Chat ID را در ترمینال درخواست می‌کند. مقادیر محرمانه نمایش داده نمی‌شوند و وارد History شل نیز نمی‌شوند. سپس یک `ADMIN_TOKEN` تصادفی تولید و در پایان فقط یک‌بار نمایش می‌دهد. برای نصب خودکار در CI می‌توانید متغیرها را همراه `NONINTERACTIVE=1` ارسال کنید.
+
+برای بازکردن امن داشبورد از کامپیوتر خود:
 
 ```bash
 ssh -L 3000:127.0.0.1:3000 USER@VPS_IP

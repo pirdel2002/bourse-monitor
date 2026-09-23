@@ -24,11 +24,19 @@ else
 fi
 
 ADMIN_TOKEN_VALUE="${ADMIN_TOKEN:-$(openssl rand -hex 24)}"
+BRS_API_KEY_VALUE="${BRS_API_KEY:-}"
+TELEGRAM_BOT_TOKEN_VALUE="${TELEGRAM_BOT_TOKEN:-}"
+TELEGRAM_CHAT_ID_VALUE="${TELEGRAM_CHAT_ID:-}"
+if [ "${NONINTERACTIVE:-0}" != "1" ] && [ -r /dev/tty ]; then
+  if [ -z "$BRS_API_KEY_VALUE" ]; then printf 'BRSAPI key: ' >/dev/tty; IFS= read -r -s BRS_API_KEY_VALUE </dev/tty; printf '\n' >/dev/tty; fi
+  if [ -z "$TELEGRAM_BOT_TOKEN_VALUE" ]; then printf 'Telegram bot token: ' >/dev/tty; IFS= read -r -s TELEGRAM_BOT_TOKEN_VALUE </dev/tty; printf '\n' >/dev/tty; fi
+  if [ -z "$TELEGRAM_CHAT_ID_VALUE" ]; then printf 'Telegram chat ID: ' >/dev/tty; IFS= read -r TELEGRAM_CHAT_ID_VALUE </dev/tty; fi
+fi
 DATA_PROVIDER_VALUE="${DATA_PROVIDER:-mock}"
-if [ -n "${BRS_API_KEY:-}" ]; then DATA_PROVIDER_VALUE="brsapi"; fi
+if [ -n "$BRS_API_KEY_VALUE" ]; then DATA_PROVIDER_VALUE="brsapi"; fi
 
 umask 077
-for value in "${BRS_API_KEY:-}" "${TELEGRAM_BOT_TOKEN:-}" "${TELEGRAM_CHAT_ID:-}"; do
+for value in "$BRS_API_KEY_VALUE" "$TELEGRAM_BOT_TOKEN_VALUE" "$TELEGRAM_CHAT_ID_VALUE"; do
   case "$value" in *$'\n'*|*$'\r'*) echo "Secrets cannot contain line breaks." >&2; exit 1;; esac
 done
 {
@@ -39,9 +47,9 @@ done
   printf 'ADMIN_TOKEN=%s\n' "$ADMIN_TOKEN_VALUE"
   printf 'POLL_INTERVAL_SECONDS=15\nMARKET_CACHE_SECONDS=150\nRETENTION_DAYS=90\nMARKET_TIMEZONE=Asia/Tehran\n'
   printf 'DATA_PROVIDER=%s\n' "$DATA_PROVIDER_VALUE"
-  printf 'BRS_API_KEY=%s\n' "${BRS_API_KEY:-}"
+  printf 'BRS_API_KEY=%s\n' "$BRS_API_KEY_VALUE"
   sed -n '/^BRS_BASE_URL=/,$p' "$INSTALL_DIR/.env.example" | grep -v -E '^(BRS_API_KEY|TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|DB_PATH)='
-  printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\nDB_PATH=/app/data/monitor.db\n' "${TELEGRAM_BOT_TOKEN:-}" "${TELEGRAM_CHAT_ID:-}"
+  printf 'TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\nDB_PATH=/app/data/monitor.db\n' "$TELEGRAM_BOT_TOKEN_VALUE" "$TELEGRAM_CHAT_ID_VALUE"
 } > "$INSTALL_DIR/.env"
 mkdir -p "$INSTALL_DIR/data"
 chmod 600 "$INSTALL_DIR/.env"
