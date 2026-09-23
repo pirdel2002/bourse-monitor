@@ -34,3 +34,9 @@ test('sell queue must exist before it is cleared',()=>{
   const result=evaluateExpression(expression,{sellQueueValue:0},[{sellQueueValue:1000000},{sellQueueValue:0}]);
   assert.equal(result.state,'active');
 });
+
+test('queue condition reports insufficient when order-book fields are absent',()=>{
+  const expression={type:'rule',field:'sellQueueValue',operator:'sell_queue_cleared'};
+  const result=evaluateExpression(expression,{sellQueueValue:0,hasOrderBookData:false},[{sellQueueValue:0,hasOrderBookData:false},{sellQueueValue:0,hasOrderBookData:false}]);
+  assert.equal(result.state,'insufficient');
+});

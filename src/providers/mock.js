@@ -31,6 +31,9 @@ export async function fetchMockSymbols() {
       totalBidVolume: 12_000_000,
       totalAskVolume: 3_000_000,
       bidAskRatio: 4,
+      hasOrderBookData: true,
+      hasBuyerPowerData: true,
+      hasDayRangeData: true,
       buyQueueValue: wave > 0.6 ? 8_000_000_000 : 0,
       sellQueueValue: wave < -0.6 ? 7_000_000_000 : 1
     };

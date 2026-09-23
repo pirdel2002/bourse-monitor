@@ -12,6 +12,11 @@ function pick(row, names, fallback = 0) {
 }
 
 export function normalizeBrsSymbol(row) {
+  const hasOrderBookData = ['pd1','qd1','po1','qo1','bestBuyPrice','bestBuyVolume','bestSellPrice','bestSellVolume'].some(key => row?.[key] !== undefined && row[key] !== null);
+  const hasBuyerPowerData = ['Buy_I_Volume','buyVolumeReal','buy_I_Volume','realBuyVolume'].some(key => row?.[key] !== undefined && row[key] !== null)
+    && ['Sell_I_Volume','sellVolumeReal','sell_I_Volume','realSellVolume'].some(key => row?.[key] !== undefined && row[key] !== null);
+  const hasDayRangeData = ['pmin','dayLow','priceMin'].some(key => row?.[key] !== undefined && row[key] !== null)
+    && ['pmax','dayHigh','priceMax'].some(key => row?.[key] !== undefined && row[key] !== null);
   const lastPrice = Number(pick(row, ['pl', 'lastPrice', 'pDrCotVal', 'priceLast']));
   const closePrice = Number(pick(row, ['pc', 'closePrice', 'pClosing', 'priceClose']));
   const upperLimit = Number(pick(row, ['tmax', 'priceMaxAllowed']));
@@ -66,6 +71,9 @@ export function normalizeBrsSymbol(row) {
     totalAskVolume,
     bidAskRatio: totalAskVolume > 0 ? totalBidVolume / totalAskVolume : totalBidVolume > 0 ? 999 : 0,
     orderBook,
+    hasOrderBookData,
+    hasBuyerPowerData,
+    hasDayRangeData,
     buyQueueValue: bestBuyPrice === upperLimit ? bestBuyPrice * bestBuyVolume : 0,
     sellQueueValue: bestSellPrice === lowerLimit ? bestSellPrice * bestSellVolume : 0,
     state: String(pick(row, ['state'], '')),

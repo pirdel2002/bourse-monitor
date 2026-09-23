@@ -73,7 +73,10 @@ const fieldName=field=>fieldCatalog.find(x=>x.value===field)?.label||field;
 
 function evaluateRule(rule,current,history){
   const value=Number(current?.[rule.field]); const previous=history.length>1?history.at(-2):null; const prevValue=Number(previous?.[rule.field]);
-  const valid=Number.isFinite(value); let active=false; let insufficient=false; let description='';
+  const explicitlyUnavailable=(['bidAskRatio','sellQueueValue','buyQueueValue'].includes(rule.field)&&current?.hasOrderBookData===false)
+    ||(rule.field==='buyerPower'&&current?.hasBuyerPowerData===false)
+    ||(['dayLow','dayHigh'].includes(rule.field)&&current?.hasDayRangeData===false);
+  const valid=Number.isFinite(value)&&!explicitlyUnavailable; let active=false; let insufficient=false; let description='';
   switch(rule.operator){
     case 'lt': insufficient=!valid; active=valid&&value<Number(rule.value); description=`${fieldName(rule.field)} ${displayNumber(value)} < ${displayNumber(rule.value)}`; break;
     case 'lte': insufficient=!valid; active=valid&&value<=Number(rule.value); description=`${fieldName(rule.field)} ${displayNumber(value)} ≤ ${displayNumber(rule.value)}`; break;
@@ -85,8 +88,8 @@ function evaluateRule(rule,current,history){
     case 'stabilizes_above':
     case 'stabilizes_below': { const samples=Math.max(2,Number(rule.options?.samples||3)); const recent=history.slice(-samples); insufficient=recent.length<samples||recent.some(x=>!Number.isFinite(Number(x[rule.field]))); active=!insufficient&&recent.every(x=>rule.operator==='stabilizes_above'?Number(x[rule.field])>Number(rule.value):Number(x[rule.field])<Number(rule.value)); description=`${recent.length}/${samples} نمونه ${rule.operator==='stabilizes_above'?'بالای':'پایین'} ${displayNumber(rule.value)}`; break; }
     case 'rebounds_from_range': { const touched=history.some(x=>Number(x.lastPrice)>=Number(rule.min)&&Number(x.lastPrice)<=Number(rule.max)); insufficient=history.length<2; active=!insufficient&&touched&&Number(current.lastPrice)>Number(rule.max); description=`قیمت ${displayNumber(current.lastPrice)}؛ تماس با محدوده ${displayNumber(rule.min)}–${displayNumber(rule.max)}: ${touched?'بله':'خیر'}`; break; }
-    case 'sell_queue_cleared': { const hadQueue=history.slice(0,-1).some(x=>Number(x.sellQueueValue)>0); insufficient=history.length<2; active=!insufficient&&hadQueue&&Number(current.sellQueueValue)===0; description=`صف فروش فعلی ${displayNumber(current.sellQueueValue)}؛ صف قبلی: ${hadQueue?'ثبت شده':'ثبت نشده'}`; break; }
-    case 'buy_queue_formed': { const hadNoQueue=history.slice(0,-1).some(x=>Number(x.buyQueueValue)===0); insufficient=history.length<2; active=!insufficient&&hadNoQueue&&Number(current.buyQueueValue)>0; description=`صف خرید فعلی ${displayNumber(current.buyQueueValue)}`; break; }
+    case 'sell_queue_cleared': { const hadQueue=history.slice(0,-1).some(x=>x.hasOrderBookData!==false&&Number(x.sellQueueValue)>0); insufficient=current?.hasOrderBookData===false||history.length<2; active=!insufficient&&hadQueue&&Number(current.sellQueueValue)===0; description=insufficient&&current?.hasOrderBookData===false?'داده ردیف سفارش موجود نیست.':`صف فروش فعلی ${displayNumber(current.sellQueueValue)}؛ صف قبلی: ${hadQueue?'ثبت شده':'ثبت نشده'}`; break; }
+    case 'buy_queue_formed': { const hadNoQueue=history.slice(0,-1).some(x=>x.hasOrderBookData!==false&&Number(x.buyQueueValue)===0); insufficient=current?.hasOrderBookData===false||history.length<2; active=!insufficient&&hadNoQueue&&Number(current.buyQueueValue)>0; description=insufficient&&current?.hasOrderBookData===false?'داده ردیف سفارش موجود نیست.':`صف خرید فعلی ${displayNumber(current.buyQueueValue)}`; break; }
   }
   return {state:insufficient?'insufficient':active?'active':'inactive',description,rule};
 }
