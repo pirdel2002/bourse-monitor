@@ -71,6 +71,6 @@ export function importRahavardZip(buffer,db,{limit=300,maxEntries=1200}={}){
 
 export function saveHistoryMappings(db,input){
   const current=db.getDataState('history-symbol-map')||{},catalog=new Set(db.allSymbolDetails().map(x=>x.symbol));
-  for(const item of Array.isArray(input)?input:[]){const ticker=cleanTicker(item.ticker),symbol=String(item.symbol||'').trim();if(!ticker||!catalog.has(symbol))throw new Error(`نگاشت ${ticker||'نامشخص'} معتبر نیست.`);current[ticker]=symbol;}
+  for(const item of Array.isArray(input)?input:[]){const ticker=cleanTicker(item.ticker),symbol=String(item.symbol||'').trim();if(!ticker||!symbol||symbol.length>30)throw new Error(`نگاشت ${ticker||'نامشخص'} معتبر نیست.`);if(!catalog.has(symbol)){db.upsertSymbols([{symbol,name:symbol,source:'manual-history-map',lastPrice:0,closePrice:0}]);catalog.add(symbol);}current[ticker]=symbol;}
   db.setDataState('history-symbol-map',current);return current;
 }

@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseRahavardText,matchTicker,normalizeTradeDate} from '../src/history-import.js';
+import {saveHistoryMappings} from '../src/history-import.js';
+import {openDatabase} from '../src/db.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 test('parses Rahavard performance rows and keeps the requested tail',()=>{
   const header='<Ticker>,<Per>,<DTYYYYMMDD>,<TIME>,<Open>,<High>,<Low>,<Close>,<Vol>,<Openint>',rows=[
@@ -18,3 +23,5 @@ test('matches a file candle to a unique AllSymbols fingerprint',()=>{
 });
 
 test('manual mapping has priority',()=>{const match=matchTicker({ticker:'X',candle:{date:'20260923'}},[{symbol:'فولاد'}],{X:'فولاد'});assert.equal(match.symbol,'فولاد');assert.equal(match.method,'manual');});
+
+test('manual history mapping creates a missing Persian symbol',()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'history-map-')),db=openDatabase(path.join(dir,'x.db'));saveHistoryMappings(db,[{ticker:'NEWCO',symbol:'نمادجدید'}]);assert.equal(db.symbolDetail('نمادجدید').name,'نمادجدید');assert.equal(db.getDataState('history-symbol-map').NEWCO,'نمادجدید');db.close();});
