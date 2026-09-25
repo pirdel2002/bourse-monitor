@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isMarketWindow } from '../src/schedule.js';
 
-const schedule = { timeZone: 'Asia/Tehran', start: '08:40', end: '12:35' };
+const schedule = { timeZone: 'Asia/Tehran', start: '09:00', end: '12:30' };
 
 test('runs during Tehran market window on a trading day', () => {
   assert.equal(isMarketWindow(schedule, new Date('2026-09-16T06:30:00Z')), true);

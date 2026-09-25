@@ -43,8 +43,9 @@ export function getConfig() {
     candleCount: Math.max(50, number('CANDLE_COUNT', 120)),
     marketSchedule: {
       timeZone: process.env.MARKET_TIMEZONE || 'Asia/Tehran',
-      start: process.env.MARKET_START || '08:40',
-      end: process.env.MARKET_END || '12:35'
+      preOpen: process.env.MARKET_PREOPEN_START || '08:45',
+      start: process.env.MARKET_START || '09:00',
+      end: process.env.MARKET_END || '12:30'
     },
     provider: process.env.DATA_PROVIDER || 'mock',
     watchlist: (process.env.WATCHLIST || '').split(',').map(x => x.trim()).filter(Boolean),

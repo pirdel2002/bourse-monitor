@@ -39,7 +39,7 @@ function validateMonitor(input){
 }
 
 async function publicAuth(req,res,url){
-  if(url.pathname==='/api/auth/login'&&req.method==='POST'){const ip=clientIp(req);if(!loginAllowed(ip))return json(res,429,{error:'تعداد تلاش‌های ورود بیش از حد مجاز است. ۱۵ دقیقه صبر کنید.'});const body=await readBody(req,20_000),token=auth.login(body.password);if(!token)return json(res,401,{error:'رمز عبور صحیح نیست.'});loginAllowed(ip,true);return json(res,200,{token,expiresIn:43200});}
+  if(url.pathname==='/api/auth/login'&&req.method==='POST'){const ip=clientIp(req);if(!loginAllowed(ip))return json(res,429,{error:'تعداد تلاش‌های ورود بیش از حد مجاز است. ۱۵ دقیقه صبر کنید.'});const body=await readBody(req,20_000),session=auth.login(body.password,body.remember===true);if(!session)return json(res,401,{error:'رمز عبور صحیح نیست.'});loginAllowed(ip,true);return json(res,200,session);}
   if(url.pathname==='/api/auth/reset/request'&&req.method==='POST'){const target=runtime.primaryTelegram();if(!target)throw new Error('ربات اصلی تلگرام برای بازیابی رمز تنظیم نشده است.');const code=auth.requestReset();await sendTelegramMany([target],`🔐 کد بازیابی رمز پایش بورس: ${code}\nاعتبار: ۱۰ دقیقه\nاگر این درخواست از طرف شما نیست، آن را نادیده بگیرید.`);return json(res,200,{ok:true,message:'کد بازیابی به تلگرام مدیر ارسال شد.'});}
   if(url.pathname==='/api/auth/reset/complete'&&req.method==='POST'){const body=await readBody(req,20_000);auth.completeReset(body.code,body.password);return json(res,200,{ok:true,message:'رمز عبور تغییر کرد. اکنون وارد شوید.'});}
   return false;
@@ -50,6 +50,7 @@ const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);
     if(url.pathname==='/'||url.pathname==='/index.html')return staticFile(res,'index.html','text/html; charset=utf-8');
     if(url.pathname==='/app.js')return staticFile(res,'app.js','text/javascript; charset=utf-8');
+    if(url.pathname==='/jalali.js')return staticFile(res,'jalali.js','text/javascript; charset=utf-8');
     if(url.pathname==='/healthz')return json(res,200,{ok:true,time:new Date().toISOString(),timezone:'Asia/Tehran'});
     if(!url.pathname.startsWith('/api/'))return json(res,404,{error:'یافت نشد'});
     const handled=await publicAuth(req,res,url);if(handled!==false)return handled;
@@ -74,7 +75,7 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/settings/test/telegram'&&req.method==='POST'){const body=await readBody(req),targets=runtime.telegramTargets().filter(x=>!body.id||x.id===body.id),result=await sendTelegramMany(targets,'✅ اتصال ربات تلگرام سامانه پایش بورس با موفقیت آزمایش شد.');return json(res,200,{ok:true,sent:result.sent});}
     if(url.pathname==='/api/settings/test/brsapi'&&req.method==='POST'){const result=await engine.refreshCatalog(true);return json(res,200,{ok:true,...result,provider:engine.lastProvider});}
     if(url.pathname==='/api/backup'&&req.method==='POST'){const body=await readBody(req,20_000),payload={format:'bourse-monitor-portable',version:1,exportedAt:new Date().toISOString(),database:db.exportPortable(),runtime:runtime.internal()};return binary(res,200,encryptBackup(payload,body.password),`bourse-monitor-${new Date().toISOString().slice(0,10)}.bmon`);}
-    if(url.pathname==='/api/restore'&&req.method==='POST'){const passphrase=String(req.headers['x-backup-passphrase']||''),file=await readRaw(req,100_000_000),payload=decryptBackup(file,passphrase);if(payload?.format!=='bourse-monitor-portable'||payload.version!==1)throw new Error('محتوای فایل پشتیبان معتبر نیست.');db.restorePortable(payload.database);runtime.save(payload.runtime);auth.sessions.clear();return json(res,200,{ok:true,relogin:true,message:'بازیابی کامل شد. دوباره وارد شوید.'});}
+    if(url.pathname==='/api/restore'&&req.method==='POST'){const passphrase=String(req.headers['x-backup-passphrase']||''),file=await readRaw(req,100_000_000),payload=decryptBackup(file,passphrase);if(payload?.format!=='bourse-monitor-portable'||payload.version!==1)throw new Error('محتوای فایل پشتیبان معتبر نیست.');db.restorePortable(payload.database);runtime.save(payload.runtime);auth.invalidateSessions();return json(res,200,{ok:true,relogin:true,message:'بازیابی کامل شد. دوباره وارد شوید.'});}
     const statusMatch=/^\/api\/monitors\/(\d+)\/status$/.exec(url.pathname);if(statusMatch&&req.method==='PATCH'){const body=await readBody(req);if(!['active','paused','completed','cancelled'].includes(body.status))throw new Error('وضعیت معتبر نیست.');return json(res,200,{monitor:db.updateMonitorStatus(Number(statusMatch[1]),body.status)});}
     const deleteMatch=/^\/api\/monitors\/(\d+)$/.exec(url.pathname);if(deleteMatch&&req.method==='DELETE')return json(res,200,{deleted:db.deleteMonitor(Number(deleteMatch[1]))});
     const runMatch=/^\/api\/monitors\/(\d+)\/run$/.exec(url.pathname);if(runMatch&&req.method==='POST')return json(res,200,await engine.runDue({forceMonitorId:Number(runMatch[1])}));

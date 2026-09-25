@@ -34,13 +34,15 @@ export function decryptBackup(buffer,password){
 }
 
 export class AuthService{
-  constructor(db,bootstrapPassword){this.db=db;this.bootstrapPassword=String(bootstrapPassword||'');this.sessions=new Map();this.reset=null;this.lastResetRequest=0;if(!this.db.getCredential()&&this.bootstrapPassword)this.db.setCredential(hashPassword(this.bootstrapPassword));}
+  constructor(db,bootstrapPassword){this.db=db;this.bootstrapPassword=String(bootstrapPassword||'');this.reset=null;this.lastResetRequest=0;if(!this.db.getCredential()&&this.bootstrapPassword)this.db.setCredential(hashPassword(this.bootstrapPassword));this.db.pruneSessions();}
   hasCustomPassword(){return Boolean(this.db.getCredential());}
   validPassword(password){const stored=this.db.getCredential();return stored?verifyPassword(password,stored.password_hash):safeEqual(password,this.bootstrapPassword);}
-  login(password){if(!this.validPassword(password))return null;const token=randomBytes(32).toString('base64url');this.sessions.set(createHash('sha256').update(token).digest('hex'),Date.now()+12*60*60*1000);return token;}
-  authorized(token){const key=createHash('sha256').update(String(token||'')).digest('hex'),expires=this.sessions.get(key);if(!expires)return false;if(expires<Date.now()){this.sessions.delete(key);return false;}return true;}
-  logout(token){this.sessions.delete(createHash('sha256').update(String(token||'')).digest('hex'));}
-  setPassword(password){this.db.setCredential(hashPassword(password));this.sessions.clear();}
+  login(password,remember=false){if(!this.validPassword(password))return null;const token=randomBytes(32).toString('base64url'),ttl=remember?30*86400000:12*60*60*1000;this.db.createSession(this.tokenHash(token),new Date(Date.now()+ttl).toISOString(),remember);return {token,expiresIn:Math.floor(ttl/1000)};}
+  tokenHash(token){return createHash('sha256').update(String(token||'')).digest('hex');}
+  authorized(token){if(!token)return false;const key=this.tokenHash(token),session=this.db.getSession(key);if(!session)return false;if(Date.parse(session.expires_at)<=Date.now()){this.db.deleteSession(key);return false;}if(Date.now()-Date.parse(session.last_used_at)>60*60*1000)this.db.touchSession(key);return true;}
+  logout(token){this.db.deleteSession(this.tokenHash(token));}
+  invalidateSessions(){this.db.deleteAllSessions();}
+  setPassword(password){this.db.setCredential(hashPassword(password));this.invalidateSessions();}
   requestReset(){if(Date.now()-this.lastResetRequest<60_000)throw new Error('برای درخواست کد جدید یک دقیقه صبر کنید.');this.lastResetRequest=Date.now();const code=String(Math.floor(100000+Math.random()*900000));this.reset={hash:createHash('sha256').update(code).digest('hex'),expires:Date.now()+10*60*1000,attempts:0};return code;}
   completeReset(code,newPassword){if(!this.reset||this.reset.expires<Date.now())throw new Error('کد بازیابی منقضی شده است.');this.reset.attempts++;if(this.reset.attempts>5){this.reset=null;throw new Error('تعداد تلاش‌های بازیابی بیش از حد مجاز است.');}const valid=safeEqual(createHash('sha256').update(String(code||'')).digest('hex'),this.reset.hash);if(!valid)throw new Error('کد بازیابی معتبر نیست.');this.setPassword(newPassword);this.reset=null;}
 }

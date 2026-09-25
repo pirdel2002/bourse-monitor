@@ -29,6 +29,8 @@ export function openDatabase(filename) {
     CREATE INDEX IF NOT EXISTS idx_events_monitor_time ON monitor_events(monitor_id,created_at DESC);
     CREATE TABLE IF NOT EXISTS app_settings (setting_key TEXT PRIMARY KEY,value_text TEXT NOT NULL,updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS admin_credentials (id INTEGER PRIMARY KEY CHECK(id=1),password_hash TEXT NOT NULL,updated_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY,expires_at TEXT NOT NULL,persistent INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,last_used_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_expiry ON admin_sessions(expires_at);
   `);
 
   const parseMonitor = row => row && ({ ...row, expression: JSON.parse(row.expression_json), maxAmountToman: row.max_amount_toman,
@@ -72,9 +74,15 @@ export function openDatabase(filename) {
     setSetting(key,value) { db.prepare(`INSERT INTO app_settings(setting_key,value_text,updated_at) VALUES (?,?,?) ON CONFLICT(setting_key) DO UPDATE SET value_text=excluded.value_text,updated_at=excluded.updated_at`).run(key,String(value),nowIso()); },
     getCredential() { return db.prepare('SELECT password_hash,updated_at FROM admin_credentials WHERE id=1').get()||null; },
     setCredential(hash) { db.prepare(`INSERT INTO admin_credentials(id,password_hash,updated_at) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET password_hash=excluded.password_hash,updated_at=excluded.updated_at`).run(hash,nowIso()); },
+    createSession(tokenHash,expiresAt,persistent=false) { const stamp=nowIso();db.prepare('INSERT INTO admin_sessions(token_hash,expires_at,persistent,created_at,last_used_at) VALUES (?,?,?,?,?)').run(tokenHash,expiresAt,persistent?1:0,stamp,stamp); },
+    getSession(tokenHash) { return db.prepare('SELECT token_hash,expires_at,persistent,last_used_at FROM admin_sessions WHERE token_hash=?').get(tokenHash)||null; },
+    touchSession(tokenHash) { db.prepare('UPDATE admin_sessions SET last_used_at=? WHERE token_hash=?').run(nowIso(),tokenHash); },
+    deleteSession(tokenHash) { db.prepare('DELETE FROM admin_sessions WHERE token_hash=?').run(tokenHash); },
+    deleteAllSessions() { db.prepare('DELETE FROM admin_sessions').run(); },
+    pruneSessions() { db.prepare('DELETE FROM admin_sessions WHERE expires_at<=?').run(nowIso()); },
     exportPortable() { const tables=['signals','api_cache','api_usage','symbol_catalog','monitors','snapshots','monitor_events','admin_credentials'];return Object.fromEntries(tables.map(table=>[table,db.prepare(`SELECT * FROM ${table}`).all()])); },
     restorePortable(data) { const orderDelete=['monitor_events','snapshots','monitors','signals','api_cache','api_usage','symbol_catalog','admin_credentials'];const orderInsert=['signals','api_cache','api_usage','symbol_catalog','monitors','snapshots','monitor_events','admin_credentials'];db.exec('BEGIN IMMEDIATE');try{for(const table of orderDelete)db.exec(`DELETE FROM ${table}`);for(const table of orderInsert){const rows=Array.isArray(data?.[table])?data[table]:[];const allowed=new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(x=>x.name));for(const row of rows){const keys=Object.keys(row).filter(x=>allowed.has(x));if(!keys.length)continue;db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>row[k]));}}db.exec('COMMIT');}catch(error){db.exec('ROLLBACK');throw error;} },
-    prune(retentionDays=30) { const cutoff=new Date(Date.now()-retentionDays*86400000).toISOString(); db.prepare('DELETE FROM snapshots WHERE observed_at<?').run(cutoff); db.prepare('DELETE FROM api_usage WHERE updated_at<?').run(cutoff); },
+    prune(retentionDays=30) { const cutoff=new Date(Date.now()-retentionDays*86400000).toISOString(); db.prepare('DELETE FROM snapshots WHERE observed_at<?').run(cutoff); db.prepare('DELETE FROM api_usage WHERE updated_at<?').run(cutoff);this.pruneSessions(); },
     close(){db.close();}
   };
 }
