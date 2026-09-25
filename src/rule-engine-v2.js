@@ -1,4 +1,6 @@
 import {sendTelegramMany} from './telegram.js';
+import {resolveActionableOrder} from './actionable-order.js';
+import {isMarketWindow} from './schedule.js';
 
 const finite=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
 const fa=value=>finite(value)?Number(value).toLocaleString('fa-IR',{maximumFractionDigits:2}):'داده ناکافی';
@@ -9,13 +11,14 @@ const compare=(current,previous,operator,value)=>operator==='above'?current>valu
 
 export const conditionCatalogV2=[
   'PRICE_ABOVE','PRICE_BELOW','PRICE_CROSS_ABOVE','PRICE_CROSS_BELOW','PRICE_IN_RANGE','PRICE_HOLD_ABOVE','EMA_RECLAIM_20','EMA_RECLAIM_50','EMA20_ABOVE_EMA50','EMA20_50_GAP_BELOW',
-  'RSI_ABOVE','RSI_BELOW','RSI_CROSS_ABOVE','RSI_CROSS_BELOW','MFI_ABOVE','MFI_BELOW','MFI_CROSS_ABOVE','MFI_CROSS_BELOW','VOLUME_RATIO_ABOVE','BUYER_POWER_ABOVE','BUYER_POWER_BELOW','PRICE_ABOVE_EMA20',
-  'OBV_TURN_UP','OBV_TURN_DOWN','OBV_BREAK_HIGH','BBW_BELOW','ATR_EXPANDING','PROFIT_ABOVE','LOSS_BELOW','TRAILING_STOP','MACD_RECOVERY_EARLY','MACD_RECOVERY_NEAR_ZERO',
+  'RSI_ABOVE','RSI_BELOW','RSI_CROSS_ABOVE','RSI_CROSS_BELOW','MFI_ABOVE','MFI_BELOW','MFI_CROSS_ABOVE','MFI_CROSS_BELOW','VOLUME_RATIO_ABOVE','BUYER_POWER_ABOVE','BUYER_POWER_BELOW','PRICE_ABOVE_EMA20','PRICE_ABOVE_EMA50',
+  'OBV_TURN_UP','OBV_TURN_DOWN','OBV_BREAK_HIGH','OBV_HOLD_RECENT_LOW','BBW_BELOW','ATR_EXPANDING','PROFIT_ABOVE','LOSS_BELOW','TRAILING_STOP','MACD_RECOVERY_EARLY','MACD_RECOVERY_NEAR_ZERO',
   'MACD_BULLISH_CROSS','MACD_BEARISH_CROSS','MACD_NEGATIVE_SHRINKING','BREAKOUT_CONFIRMED','BREAKDOWN_CONFIRMED','SUPPORT_HOLD','SUPPORT_BREAK','RESISTANCE_BREAK',
   'MARKET_BREADTH_STRONG','MARKET_BREADTH_WEAK','MARKET_BUYER_POWER_STRONG','MARKET_BUYER_POWER_WEAK','MARKET_VOLUME_HIGH','MARKET_RISK_ON','MARKET_RISK_OFF','BUY_QUEUE_VALUE_CHANGE_15M_ABOVE','SELL_QUEUE_VALUE_CHANGE_15M_ABOVE','TECH_RECOVERY_STRONG','TECH_RECOVERY_VERY_STRONG'
 ];
 
-const conditionLabels={PRICE_ABOVE:'قیمت بالاتر از',PRICE_BELOW:'قیمت پایین‌تر از',PRICE_CROSS_ABOVE:'عبور قیمت به بالا',PRICE_CROSS_BELOW:'عبور قیمت به پایین',PRICE_IN_RANGE:'قیمت داخل محدوده',PRICE_HOLD_ABOVE:'تثبیت قیمت بالای سطح',EMA_RECLAIM_20:'بازپس‌گیری EMA20',EMA_RECLAIM_50:'بازپس‌گیری EMA50',EMA20_ABOVE_EMA50:'EMA20 بالای EMA50',EMA20_50_GAP_BELOW:'فاصله EMA20/50 کمتر از',RSI_ABOVE:'RSI بالاتر از',RSI_BELOW:'RSI پایین‌تر از',RSI_CROSS_ABOVE:'عبور RSI به بالا',RSI_CROSS_BELOW:'عبور RSI به پایین',MFI_ABOVE:'MFI بالاتر از',MFI_BELOW:'MFI پایین‌تر از',MFI_CROSS_ABOVE:'عبور MFI به بالا',MFI_CROSS_BELOW:'عبور MFI به پایین',VOLUME_RATIO_ABOVE:'نسبت حجم به میانگین بالاتر از',BUYER_POWER_ABOVE:'قدرت خریدار بالاتر از',BUYER_POWER_BELOW:'قدرت خریدار پایین‌تر از',PRICE_ABOVE_EMA20:'قیمت بالای EMA20',OBV_TURN_UP:'برگشت صعودی OBV',OBV_TURN_DOWN:'برگشت نزولی OBV',OBV_BREAK_HIGH:'شکست سقف OBV',BBW_BELOW:'BBW پایین‌تر از',ATR_EXPANDING:'گسترش ATR',PROFIT_ABOVE:'سود سبد بالاتر از',LOSS_BELOW:'زیان سبد بیشتر از',TRAILING_STOP:'حد زیان متحرک',MACD_RECOVERY_EARLY:'خروج اولیه MACD از اصلاح',MACD_RECOVERY_NEAR_ZERO:'بازیابی MACD نزدیک صفر',MACD_BULLISH_CROSS:'کراس صعودی MACD',MACD_BEARISH_CROSS:'کراس نزولی MACD',MACD_NEGATIVE_SHRINKING:'کاهش هیستوگرام منفی MACD',BREAKOUT_CONFIRMED:'شکست معتبر مقاومت',BREAKDOWN_CONFIRMED:'شکست معتبر حمایت',SUPPORT_HOLD:'حفظ حمایت',SUPPORT_BREAK:'شکست حمایت',RESISTANCE_BREAK:'شکست مقاومت',MARKET_BREADTH_STRONG:'وسعت مثبت بازار',MARKET_BREADTH_WEAK:'وسعت منفی بازار',MARKET_BUYER_POWER_STRONG:'قدرت خریدار قوی بازار',MARKET_BUYER_POWER_WEAK:'قدرت خریدار ضعیف بازار',MARKET_VOLUME_HIGH:'جهش ارزش معاملات خرد',MARKET_RISK_ON:'وضعیت RISK ON بازار',MARKET_RISK_OFF:'وضعیت RISK OFF بازار',BUY_QUEUE_VALUE_CHANGE_15M_ABOVE:'رشد ۱۵دقیقه‌ای صف خرید',SELL_QUEUE_VALUE_CHANGE_15M_ABOVE:'رشد ۱۵دقیقه‌ای صف فروش',TECH_RECOVERY_STRONG:'امتیاز بازیابی قوی',TECH_RECOVERY_VERY_STRONG:'امتیاز بازیابی بسیار قوی'};
+const conditionLabels={PRICE_ABOVE:'قیمت بالاتر از',PRICE_BELOW:'قیمت پایین‌تر از',PRICE_CROSS_ABOVE:'عبور قیمت به بالا',PRICE_CROSS_BELOW:'عبور قیمت به پایین',PRICE_IN_RANGE:'قیمت داخل محدوده',PRICE_HOLD_ABOVE:'تثبیت قیمت بالای سطح',EMA_RECLAIM_20:'بازپس‌گیری EMA20',EMA_RECLAIM_50:'بازپس‌گیری EMA50',EMA20_ABOVE_EMA50:'EMA20 بالای EMA50',EMA20_50_GAP_BELOW:'فاصله EMA20/50 کمتر از',RSI_ABOVE:'RSI بالاتر از',RSI_BELOW:'RSI پایین‌تر از',RSI_CROSS_ABOVE:'عبور RSI به بالا',RSI_CROSS_BELOW:'عبور RSI به پایین',MFI_ABOVE:'MFI بالاتر از',MFI_BELOW:'MFI پایین‌تر از',MFI_CROSS_ABOVE:'عبور MFI به بالا',MFI_CROSS_BELOW:'عبور MFI به پایین',VOLUME_RATIO_ABOVE:'نسبت حجم به میانگین بالاتر از',BUYER_POWER_ABOVE:'قدرت خریدار بالاتر از',BUYER_POWER_BELOW:'قدرت خریدار پایین‌تر از',PRICE_ABOVE_EMA20:'قیمت بالای EMA20',OBV_TURN_UP:'برگشت صعودی OBV',OBV_TURN_DOWN:'برگشت نزولی OBV',OBV_BREAK_HIGH:'شکست سقف OBV',OBV_HOLD_RECENT_LOW:'OBV بالای کف ۱۰ کندل',BBW_BELOW:'BBW پایین‌تر از',ATR_EXPANDING:'گسترش ATR',PROFIT_ABOVE:'سود سبد بالاتر از',LOSS_BELOW:'زیان سبد بیشتر از',TRAILING_STOP:'حد زیان متحرک',MACD_RECOVERY_EARLY:'خروج اولیه MACD از اصلاح',MACD_RECOVERY_NEAR_ZERO:'بازیابی MACD نزدیک صفر',MACD_BULLISH_CROSS:'کراس صعودی MACD',MACD_BEARISH_CROSS:'کراس نزولی MACD',MACD_NEGATIVE_SHRINKING:'کاهش هیستوگرام منفی MACD',BREAKOUT_CONFIRMED:'شکست معتبر مقاومت',BREAKDOWN_CONFIRMED:'شکست معتبر حمایت',SUPPORT_HOLD:'حفظ حمایت',SUPPORT_BREAK:'شکست حمایت',RESISTANCE_BREAK:'شکست مقاومت',MARKET_BREADTH_STRONG:'وسعت مثبت بازار',MARKET_BREADTH_WEAK:'وسعت منفی بازار',MARKET_BUYER_POWER_STRONG:'قدرت خریدار قوی بازار',MARKET_BUYER_POWER_WEAK:'قدرت خریدار ضعیف بازار',MARKET_VOLUME_HIGH:'جهش ارزش معاملات خرد',MARKET_RISK_ON:'وضعیت RISK ON بازار',MARKET_RISK_OFF:'وضعیت RISK OFF بازار',BUY_QUEUE_VALUE_CHANGE_15M_ABOVE:'رشد ۱۵دقیقه‌ای صف خرید',SELL_QUEUE_VALUE_CHANGE_15M_ABOVE:'رشد ۱۵دقیقه‌ای صف فروش',TECH_RECOVERY_STRONG:'امتیاز بازیابی قوی',TECH_RECOVERY_VERY_STRONG:'امتیاز بازیابی بسیار قوی'};
+conditionLabels.PRICE_ABOVE_EMA50='قیمت بالای EMA50';
 const valueConditions=new Set(['PRICE_ABOVE','PRICE_BELOW','PRICE_CROSS_ABOVE','PRICE_CROSS_BELOW','EMA20_50_GAP_BELOW','RSI_ABOVE','RSI_BELOW','RSI_CROSS_ABOVE','RSI_CROSS_BELOW','MFI_ABOVE','MFI_BELOW','MFI_CROSS_ABOVE','MFI_CROSS_BELOW','VOLUME_RATIO_ABOVE','BUYER_POWER_ABOVE','BUYER_POWER_BELOW','BBW_BELOW','PROFIT_ABOVE','LOSS_BELOW','TRAILING_STOP','MARKET_BREADTH_STRONG','MARKET_BREADTH_WEAK','MARKET_BUYER_POWER_STRONG','MARKET_BUYER_POWER_WEAK','MARKET_VOLUME_HIGH','BUY_QUEUE_VALUE_CHANGE_15M_ABOVE','SELL_QUEUE_VALUE_CHANGE_15M_ABOVE']);
 export const conditionDefinitionsV2=conditionCatalogV2.map(value=>{let params=[];if(valueConditions.has(value))params=[{key:'value',label:'مقدار',default:value.includes('QUEUE_VALUE_CHANGE')?30:0}];if(value==='PRICE_IN_RANGE')params=[{key:'min',label:'از',default:0},{key:'max',label:'تا',default:0}];if(value==='PRICE_HOLD_ABOVE')params=[{key:'value',label:'سطح',default:0},{key:'periods',label:'تعداد نمونه',default:3}];if(value==='OBV_BREAK_HIGH')params=[{key:'periods',label:'تعداد کندل',default:10}];if(['SUPPORT_BREAK','RESISTANCE_BREAK'].includes(value))params=[{key:'level',label:'سطح',default:0}];if(value==='SUPPORT_HOLD')params=[{key:'level',label:'حمایت',default:0},{key:'tolerance_pct',label:'تلورانس درصدی',default:1}];if(['BREAKOUT_CONFIRMED','BREAKDOWN_CONFIRMED'].includes(value))params=[{key:'level',label:'سطح',default:0},{key:'volume_ratio',label:'نسبت حجم',default:1.5},...(value==='BREAKOUT_CONFIRMED'?[{key:'buyer_power',label:'قدرت خریدار',default:1.2}]:[])];return {value,label:conditionLabels[value]||value,params};});
 
@@ -53,9 +56,11 @@ export function evaluateCondition(condition,context){
     case 'BUYER_POWER_ABOVE':if((missing=numeric('قدرت خریدار',c.buyer_power)))return missing;return result(c.buyer_power>=p.value,`قدرت خریدار: ${fa(c.buyer_power)}`);
     case 'BUYER_POWER_BELOW':if((missing=numeric('قدرت خریدار',c.buyer_power)))return missing;return result(c.buyer_power<=p.value,`قدرت خریدار: ${fa(c.buyer_power)}`);
     case 'PRICE_ABOVE_EMA20':if(![c.price,c.ema20].every(finite))return insufficient('قیمت/EMA20: داده کافی موجود نیست.');return result(c.price>c.ema20,`قیمت ${fa(c.price)} بالای EMA20 ${fa(c.ema20)}`);
+    case 'PRICE_ABOVE_EMA50':if(![c.price,c.ema50].every(finite))return insufficient('قیمت/EMA50: داده کافی موجود نیست.');return result(c.price>c.ema50,`قیمت ${fa(c.price)} بالای EMA50 ${fa(c.ema50)}`);
     case 'OBV_TURN_UP':if(![c.obv,c.obv_prev1,c.obv_prev2].every(finite))return insufficient('OBV: داده کافی موجود نیست.');return result(c.obv>c.obv_prev1&&c.obv_prev1<=c.obv_prev2,`OBV: ${fa(c.obv_prev2)} ← ${fa(c.obv_prev1)} ← ${fa(c.obv)}`);
     case 'OBV_TURN_DOWN':if(![c.obv,c.obv_prev1,c.obv_prev2].every(finite))return insufficient('OBV: داده کافی موجود نیست.');return result(c.obv<c.obv_prev1&&c.obv_prev1>=c.obv_prev2,`OBV: ${fa(c.obv_prev2)} ← ${fa(c.obv_prev1)} ← ${fa(c.obv)}`);
     case 'OBV_BREAK_HIGH':{const high=c[`obv_high_${Number(p.periods||10)}`];if(![c.obv,high].every(finite))return insufficient('سقف OBV: داده کافی موجود نیست.');return result(c.obv>high,`OBV ${fa(c.obv)}؛ سقف ${p.periods||10} کندل ${fa(high)}`);}
+    case 'OBV_HOLD_RECENT_LOW':if(![c.obv,c.obv_low_10].every(finite))return insufficient('کف ۱۰ کندل OBV: داده کافی موجود نیست.');return result(c.obv>=c.obv_low_10,`OBV ${fa(c.obv)}؛ کف ۱۰ کندل ${fa(c.obv_low_10)}`);
     case 'BBW_BELOW':if((missing=numeric('BBW',c.bbw)))return missing;return result(c.bbw<p.value,`BBW: ${fa(c.bbw)}`);
     case 'ATR_EXPANDING':if(![c.atr14,c.atr14_sma5].every(finite))return insufficient('ATR: داده کافی موجود نیست.');return result(c.atr14>c.atr14_sma5,`ATR14 ${fa(c.atr14)} / میانگین۵ ${fa(c.atr14_sma5)}`);
     case 'PROFIT_ABOVE':if((missing=numeric('سود سبد',portfolio.profit_pct)))return missing;return result(portfolio.profit_pct>=p.value,`سود موقعیت: ${fa(portfolio.profit_pct)}٪`);
@@ -110,6 +115,49 @@ function addMarketHistory(context,history,now=new Date()){
 
 export class RuleEngineV2{
   constructor(config,db,marketData,runtime){this.config=config;this.db=db;this.marketData=marketData;this.runtime=runtime;this.running=false;this.lastRunAt=null;this.lastError=null;}
-  async run(){if(this.running)return {skipped:true};this.running=true;try{const rules=this.db.dueRulesV2();if(!rules.length)return {rules:0,results:[]};const rows=await this.marketData.marketRows(),index=rules.some(rule=>rule.scope==='MARKET')?await this.marketData.marketIndex():null,bySymbol=new Map(rows.map(x=>[x.symbol,x])),now=new Date(),history=this.db.marketSnapshotHistory(),market=addMarketHistory(buildMarketContext(rows,index),history,now),market15m=this.db.marketContextBefore(new Date(now.getTime()-15*60000).toISOString(),new Date(now.getTime()-20*60000).toISOString())||{},riskOff=evaluateCondition({name:'MARKET_RISK_OFF'}, {market}).state==='active',results=[],contexts=new Map(),batchId=`${rows[0]?.date||'live'}:${rows[0]?.time||Math.floor(Date.now()/300000)}`;this.db.addMarketSnapshot(batchId,market);for(const rule of rules){let context;if(rule.scope==='MARKET')context={market,market15m,current:market,previous:this.db.previousMarketContext()||{}};else{if(!contexts.has(rule.symbol))contexts.set(rule.symbol,await this.marketData.ruleContext(rule.symbol,bySymbol.get(rule.symbol),market));context=contexts.get(rule.symbol);}const evaluated=evaluateRuleExpression(rule.expression,context),state=this.db.ruleStateV2(rule.id),transition=evaluated.state==='active'&&state?.state!=='active',tehranDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(now),cooldownOk=!state?.last_notified_at||Date.now()-Date.parse(state.last_notified_at)>=rule.cooldownMinutes*60000,dayOk=!rule.oncePerDay||state?.last_triggered_day!==tehranDay,notify=transition&&cooldownOk&&dayOk,buySeverity=['BUY','STRONG_BUY'].includes(rule.severity),effectiveSeverity=riskOff&&rule.severity==='STRONG_BUY'?'BUY':riskOff&&rule.severity==='BUY'?'WATCH':rule.severity;let sent=false;if(notify){const message=this.formatAlert(rule,context,evaluated,effectiveSeverity,riskOff&&buySeverity);const delivery=await sendTelegramMany(this.runtime.telegramTargets(),message);sent=!delivery.skipped;}this.db.recordRuleResultV2(rule,evaluated,context,sent,notify?tehranDay:null,effectiveSeverity);results.push({ruleId:rule.ruleId,state:evaluated.state,effectiveSeverity,telegramSent:sent});}this.lastRunAt=new Date().toISOString();this.lastError=null;return {rules:rules.length,riskOff,results};}catch(error){this.lastError=error.message;throw error;}finally{this.running=false;}}
+  async run(){
+    if(this.running)return {skipped:true};this.running=true;
+    try{
+      const rules=this.db.dueRulesV2();if(!rules.length)return {rules:0,results:[]};
+      const rows=await this.marketData.marketRows(),index=rules.some(rule=>rule.scope==='MARKET')?await this.marketData.marketIndex():null;
+      const bySymbol=new Map(rows.map(x=>[x.symbol,x])),now=new Date(),history=this.db.marketSnapshotHistory();
+      const market=addMarketHistory(buildMarketContext(rows,index),history,now);
+      const market15m=this.db.marketContextBefore(new Date(now.getTime()-15*60000).toISOString(),new Date(now.getTime()-20*60000).toISOString())||{};
+      const riskOff=evaluateCondition({name:'MARKET_RISK_OFF'},{market}).state==='active';
+      const results=[],contexts=new Map(),batchId=`${rows[0]?.date||'live'}:${rows[0]?.time||Math.floor(Date.now()/300000)}`;
+      this.db.addMarketSnapshot(batchId,market);
+      for(const rule of rules){
+        let context;
+        if(rule.scope==='MARKET')context={market,market15m,current:market,previous:this.db.previousMarketContext()||{}};
+        else{if(!contexts.has(rule.symbol))contexts.set(rule.symbol,await this.marketData.ruleContext(rule.symbol,bySymbol.get(rule.symbol),market));context=contexts.get(rule.symbol);}
+        const executable=rule.actionParams?.executableOnly===true;
+        const savedCash=executable?this.db.getDataState('account:cash'):null;
+        const reservation=executable?this.db.getDataState('account:reservations'):null;
+        const reservedToman=reservation&&savedCash&&reservation.cashUpdatedAt===savedCash.updatedAt?Number(reservation.totalToman||0):0;
+        const cash=savedCash?{...savedCash,availableToman:Number(savedCash.availableToman)-reservedToman}:null;
+        const order=executable?resolveActionableOrder(rule,context,cash):null;
+        const evaluated=evaluateRuleExpression(rule.expression,context);
+        // An active analysis without a valid order is not an actionable signal.
+        if(executable&&(!order||(riskOff&&rule.action==='BUY_ALERT')||!isMarketWindow(this.config.marketSchedule||{timeZone:'Asia/Tehran',start:'09:00',end:'12:30'},now))&&evaluated.state==='active')evaluated.state='insufficient';
+        const state=this.db.ruleStateV2(rule.id),transition=evaluated.state==='active'&&state?.state!=='active';
+        const tehranDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(now);
+        const cooldownOk=!state?.last_notified_at||Date.now()-Date.parse(state.last_notified_at)>=rule.cooldownMinutes*60000;
+        const dayOk=!rule.oncePerDay||state?.last_triggered_day!==tehranDay;
+        const notify=transition&&cooldownOk&&dayOk;
+        const buySeverity=['BUY','STRONG_BUY'].includes(rule.severity);
+        const effectiveSeverity=riskOff&&rule.severity==='STRONG_BUY'?'BUY':riskOff&&rule.severity==='BUY'?'WATCH':rule.severity;
+        let sent=false;
+        if(notify){const message=executable?`${order.text}\n\n${rule.name}\nقیمت تابلو: ${fa(context.current?.price)} ریال\nاین پیام سفارش خودکار نیست.`:this.formatAlert(rule,context,evaluated,effectiveSeverity,riskOff&&buySeverity);
+          const delivery=await sendTelegramMany(this.runtime.telegramTargets(),message);sent=!delivery.skipped;}
+        if(notify&&executable&&!sent)evaluated.state='insufficient';
+        if(sent&&executable&&order.side==='خرید')this.db.setDataState('account:reservations',{
+          cashUpdatedAt:savedCash.updatedAt,totalToman:reservedToman+order.amountToman
+        });
+        this.db.recordRuleResultV2(rule,evaluated,context,sent,notify?tehranDay:null,effectiveSeverity);
+        results.push({ruleId:rule.ruleId,state:evaluated.state,effectiveSeverity,telegramSent:sent});
+      }
+      this.lastRunAt=new Date().toISOString();this.lastError=null;return {rules:rules.length,riskOff,results};
+    }catch(error){this.lastError=error.message;throw error;}finally{this.running=false;}
+  }
   formatAlert(rule,context,evaluation,effectiveSeverity=rule.severity,downgraded=false){const evidence=[];const walk=node=>{if(node.description&&node.type!=='group')evidence.push(`• ${node.description}`);(node.children||[]).forEach(walk);};walk(evaluation);const c=context.current||{},custom=rule.actionParams?.message,priority=rule.actionParams?.priority;return [`🚨 ${rule.symbol||'کل بازار'}`,custom||rule.name,priority?`اولویت: ${priority}`:null,`شدت: ${effectiveSeverity}`,`اقدام: ${rule.action}`,downgraded?'⚠️ هشدار خرید به‌علت وضعیت ریسک بازار یک سطح کاهش یافت.':null,finite(c.price)?`قیمت: ${fa(c.price)} ریال`:null,'',...evidence.slice(0,8),'','این پیام تصمیم‌یار است و سفارش واقعی ثبت نشده است.'].filter(x=>x!=null).join('\n');}
 }

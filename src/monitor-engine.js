@@ -31,10 +31,13 @@ export class MonitorEngine{
 
   async candlesFor(symbol,{force=false}={}){
     const stored=this.db.candles(symbol,this.config.candleCount||120);if(!force&&stored.length>=50)return stored;
+    const retryKey=`candles:last-fetch:${symbol}`,previous=this.db.getDataState(retryKey);
+    if(!force&&previous&&Date.now()-Date.parse(previous.at)<(previous.ok?24:1)*3600_000)return stored;
     const providerMode=this.runtime?.hasApiProviders?.()?'brsapi':this.config.provider;
     if(providerMode==='mock')return stored;
     const providers=this.runtime?.orderedProviders?.()||[{id:'default',...this.config.brs}],errors=[];
-    for(const provider of providers){try{const candles=await fetchBrsCandles(provider,symbol,this.config.candleType||3,this.config.candleCount||120,endpoint=>this.quota.reserve(endpoint,new Date(),provider.id));this.db.upsertCandles(symbol,candles,'brsapi',1);this.runtime?.reportProvider?.(provider.id,true);return this.db.candles(symbol,this.config.candleCount||120);}catch(error){this.runtime?.reportProvider?.(provider.id,false);errors.push(`${provider.name||provider.id}: ${error.message}`);}}
+    for(const provider of providers){try{const candles=await fetchBrsCandles(provider,symbol,this.config.candleType||3,this.config.candleCount||120,endpoint=>this.quota.reserve(endpoint,new Date(),provider.id));this.db.upsertCandles(symbol,candles,'brsapi',1);this.db.setDataState(retryKey,{at:nowIso(),ok:true});this.runtime?.reportProvider?.(provider.id,true);return this.db.candles(symbol,this.config.candleCount||120);}catch(error){this.runtime?.reportProvider?.(provider.id,false);errors.push(`${provider.name||provider.id}: ${error.message}`);}}
+    this.db.setDataState(retryKey,{at:nowIso(),ok:false});
     if(stored.length)return stored;throw new Error(`تاریخچه ${symbol} دریافت نشد؛ ${errors.join(' | ')}`);
   }
 
@@ -48,7 +51,7 @@ export class MonitorEngine{
     let candles=this.db.candles(symbol,this.config.candleCount||120),historyError=null;try{candles=await this.candlesFor(symbol);}catch(error){historyError=error.message;}const live=makeLiveCandle(row);if(live.date&&live.close>0)this.db.upsertCandles(symbol,[live],'all-symbols-live',1);const analysis=buildIndicatorAnalysis(candles,row);if(historyError&&!analysis.valid)analysis.reason=`${analysis.reason||'داده تاریخی کافی نیست.'} ${historyError}`;const history=this.db.symbolTickHistory(symbol,50),previous=history.at(-1)||{},batchId=`${row.date||'live'}:${row.time||Math.floor(Date.now()/300000)}`;
     const current=analysis.context||{price:row.lastPrice,close:row.closePrice};this.db.addSymbolTick(batchId,symbol,current);
     let position=this.db.portfolioPosition(symbol);if(position&&position.quantity>0&&position.avg_price>0){this.db.updatePortfolioHigh(symbol,current.price);position=this.db.portfolioPosition(symbol);position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;}
-    return {current,previous,liveHistory:history,portfolio:position,market,analysis};
+    return {current,previous,liveHistory:history,portfolio:position,market,marketRow:row,analysis};
   }
 
   historyWindow(expression){

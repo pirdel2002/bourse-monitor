@@ -280,6 +280,14 @@
 </section>
 <section id="page-monitors" class="page">
 <section class="panel">
+<h2>بستهٔ سیگنال خرید و فروش</h2>
+<p class="note">این بسته قواعد قبلی را حذف نمی‌کند. ۱۰ خریدِ دارای تعداد و سقف قیمت تعریف شده‌اند؛ موارد بدون مقدار سفارش و فروش‌های نیازمند تصمیم تکمیلی غیرفعال می‌مانند. پیش از نصب، نسخهٔ پشتیبان بگیر.</p>
+<div class="actions"><button id="previewActionPack" class="secondary">نمایش خلاصهٔ بسته</button><button id="installActionPack" class="success">نصب قواعد اقدام‌محور</button></div>
+<p id="actionPackSummary" class="note"></p>
+<div class="actions"><label>قدرت خرید نقدی به تومان <input id="accountCashToman" type="number" min="0" step="1" placeholder="مبلغ تازه از کارگزاری"></label><button id="saveAccountCash" class="secondary">ثبت قدرت خرید امروز</button></div>
+<p class="note">ثبت نقد ۲۴ ساعت اعتبار دارد. برنامه ۲ میلیون تومان را کنار می‌گذارد و ارزش سیگنال‌های خرید ارسالی را تا ثبت مبلغ جدید رزرو می‌کند. این عدد سفارش‌های باز واقعی را نشان نمی‌دهد.</p>
+</section>
+<section class="panel">
 <div class="actions"><label class="check-row" style="margin:0"><input id="selectAllMonitoring" type="checkbox"> انتخاب همه موارد نمایش‌داده‌شده</label><button id="deleteSelectedMonitoring" class="danger small">حذف انتخاب‌شده‌ها</button><button id="deleteAllMonitoring" class="danger small">حذف همه پایش‌ها و قوانین</button></div>
 <p class="note">«حذف همه» پایش‌های فعال/متوقف و تمام Ruleهای v2 را حذف می‌کند؛ آرشیو پایش‌های پایان‌یافته باقی می‌ماند.</p>
 </section>
@@ -357,7 +365,7 @@
 <section id="page-bulk" class="page">
 <div class="grid">
 <section class="panel span8">
-<h2>ورود گروهی پایش‌ها</h2>
+<h2>ورود گروهی پایش‌ها و قوانین</h2>
 <p class="note">فایل UTF-8 با پسوند TXT یا JSON انتخاب کن، یا متن را مستقیم Paste کن. پیش‌نمایش هیچ پایشی ایجاد نمی‌کند.</p>
 <div class="field">
 <textarea id="bulkText" style="min-height:340px" placeholder="متن پایش‌ها را اینجا قرار بده">

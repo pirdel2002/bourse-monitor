@@ -14,6 +14,7 @@ import {sendTelegramMany} from './telegram.js';
 import {RuleEngineV2,conditionCatalogV2,conditionDefinitionsV2,normalizeRuleExpressionV2,validateRuleExpressionV2} from './rule-engine-v2.js';
 import {isMarketWindow} from './schedule.js';
 import {defaultRulePackV1} from './rule-pack-v1.js';
+import {actionableRulePack} from './actionable-rule-pack.js';
 import {importRahavardZip,saveHistoryMappings} from './history-import.js';
 
 loadDotEnv();
@@ -45,6 +46,7 @@ function validateMonitor(input){
 }
 
 function validateRuleV2(input){const scope=['SYMBOL','PORTFOLIO','MARKET'].includes(input.scope)?input.scope:'SYMBOL',symbol=scope==='MARKET'?null:String(input.symbol||'').trim();if(scope!=='MARKET'&&!symbol)throw new Error('برای Rule نماد یا سبد، نماد الزامی است.');const expression=normalizeRuleExpressionV2(input.expression||{conditions:input.conditions,condition_logic:input.conditionLogic||input.condition_logic});validateRuleExpressionV2(expression);const severity=['INFO','WATCH','BUY','STRONG_BUY','WARNING','SELL','EXIT'].includes(input.severity)?input.severity:'INFO',actions=['ALERT','BUY_ALERT','SELL_ALERT','PARTIAL_PROFIT','PROFIT_REVIEW','EXIT_ALERT','CANCEL_ORDER','MOVE_STOP','TRAILING_STOP'];if(!actions.includes(input.action))throw new Error('Action معتبر نیست.');return {ruleId:String(input.ruleId||input.rule_id||`${scope}_${symbol||'MARKET'}_${Date.now()}`).slice(0,120),symbol,name:String(input.name||'Rule جدید').slice(0,160),description:String(input.description||'').slice(0,2000),enabled:input.enabled!==false,scope,severity,expression,action:input.action,actionParams:input.actionParams||input.action_params||{},cooldownMinutes:Math.max(1,Number(input.cooldownMinutes||input.cooldown_minutes||30)),oncePerDay:Boolean(input.oncePerDay||input.once_per_day),intervalMinutes:Math.max(1,Number(input.intervalMinutes||input.interval_minutes||5)),startAt:input.startAt||input.start_at||null,endAt:input.endAt||input.end_at||null};}
+function parseRuleImport(text){const parsed=JSON.parse(String(text||''));if(parsed?.installPack==='actionable-1405-07-03')return actionableRulePack;const items=Array.isArray(parsed)?parsed:parsed.rules;if(!Array.isArray(items)||!items.length)throw new Error('JSON باید دارای آرایه rules یا نام بستهٔ معتبر باشد.');return items;}
 
 async function publicAuth(req,res,url){
   if(url.pathname==='/api/auth/login'&&req.method==='POST'){const ip=clientIp(req);if(!loginAllowed(ip))return json(res,429,{error:'تعداد تلاش‌های ورود بیش از حد مجاز است. ۱۵ دقیقه صبر کنید.'});const body=await readBody(req,20_000),session=auth.login(body.password,body.remember===true);if(!session)return json(res,401,{error:'رمز عبور صحیح نیست.'});loginAllowed(ip,true);return json(res,200,session);}
@@ -72,6 +74,12 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/conditions/parse'&&req.method==='POST'){const body=await readBody(req);return json(res,200,{expression:parsePersianCondition(body.text)});}
     if(url.pathname==='/api/monitors/import/preview'&&req.method==='POST'){const body=await readBody(req);const monitors=parseBulkMonitors(body.text).map(validateMonitor);return json(res,200,{count:monitors.length,monitors});}
     if(url.pathname==='/api/monitors/import'&&req.method==='POST'){const body=await readBody(req);const validated=parseBulkMonitors(body.text).map(validateMonitor),monitors=validated.map(x=>db.createMonitor(x));return json(res,201,{count:monitors.length,monitors});}
+    if(url.pathname==='/api/rules/import/preview'&&req.method==='POST'){
+      const body=await readBody(req,500_000),rules=parseRuleImport(body.text).map(validateRuleV2);return json(res,200,{count:rules.length,rules});
+    }
+    if(url.pathname==='/api/rules/import'&&req.method==='POST'){
+      const body=await readBody(req,500_000),rules=parseRuleImport(body.text).map(validateRuleV2),result=db.installRulePack(rules);return json(res,201,{...result,rules});
+    }
     if(url.pathname==='/api/symbols'&&req.method==='GET')return json(res,200,{symbols:db.searchSymbols(url.searchParams.get('q')||'',30)});
     if(url.pathname==='/api/symbols/detail'&&req.method==='GET')return json(res,200,{symbol:db.symbolDetail(url.searchParams.get('symbol')||'')});
     if(url.pathname==='/api/symbols/analysis'&&req.method==='GET'){const symbol=String(url.searchParams.get('symbol')||'').trim();if(!symbol)throw new Error('نماد را انتخاب کنید.');return json(res,200,await engine.analyzeSymbol(symbol,{forceHistory:url.searchParams.get('refresh')==='1'}));}
@@ -79,6 +87,18 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/monitors'&&req.method==='GET')return json(res,200,{monitors:db.listMonitors({symbol:url.searchParams.get('symbol')||'',archive:url.searchParams.get('archive')==='1'})});
     if(url.pathname==='/api/monitors'&&req.method==='POST')return json(res,201,{monitor:db.createMonitor(validateMonitor(await readBody(req)))});
     if(url.pathname==='/api/rules'&&req.method==='GET')return json(res,200,{rules:db.listRulesV2()});
+    if(url.pathname==='/api/rules/actionable-pack'&&req.method==='GET')return json(res,200,{rules:actionableRulePack,notes:'پیش‌نمایش فقط؛ بدون نصب یا حذف قواعد قبلی.'});
+    if(url.pathname==='/api/rules/actionable-pack'&&req.method==='POST'){
+      const body=await readBody(req,20_000);
+      if(body.confirm!=='INSTALL_ACTIONABLE_PACK')throw new Error('برای نصب بسته، تأیید صریح لازم است.');
+      return json(res,200,db.installRulePack(actionableRulePack));
+    }
+    if(url.pathname==='/api/account/cash'&&req.method==='PUT'){
+      const body=await readBody(req,20_000),availableToman=Number(body.availableToman);
+      if(!Number.isFinite(availableToman)||availableToman<0)throw new Error('قدرت خرید نقدی معتبر نیست.');
+      db.setDataState('account:cash',{availableToman,updatedAt:new Date().toISOString()});
+      return json(res,200,{ok:true,updatedAt:new Date().toISOString()});
+    }
     if(url.pathname==='/api/rules'&&req.method==='POST')return json(res,201,{rule:db.createRuleV2(validateRuleV2(await readBody(req)))});
     if(url.pathname==='/api/monitoring/bulk-delete'&&req.method==='POST'){const body=await readBody(req,200_000),items=Array.isArray(body.items)?body.items.slice(0,2000):[];return json(res,200,db.bulkDeleteMonitoring(items,body.all===true));}
     if(url.pathname==='/api/rules/run'&&req.method==='POST')return json(res,200,await ruleEngine.run());
@@ -93,7 +113,7 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/history/mappings'&&req.method==='POST'){const body=await readBody(req,200_000),saved=saveHistoryMappings(db,body.mappings);return json(res,200,{ok:true,mappings:Object.keys(saved).length});}
     if(url.pathname==='/api/history/import'&&req.method==='POST'){const file=await readRaw(req,35_000_000),result=importRahavardZip(file,db,{limit:300});return json(res,200,result);}
     if(url.pathname==='/api/backup'&&req.method==='POST'){const body=await readBody(req,20_000),payload={format:'bourse-monitor-portable',version:1,exportedAt:new Date().toISOString(),database:db.exportPortable(),runtime:runtime.internal()};return binary(res,200,encryptBackup(payload,body.password),`bourse-monitor-${new Date().toISOString().slice(0,10)}.bmon`);}
-    if(url.pathname==='/api/restore'&&req.method==='POST'){const passphrase=String(req.headers['x-backup-passphrase']||''),file=await readRaw(req,100_000_000),payload=decryptBackup(file,passphrase);if(payload?.format!=='bourse-monitor-portable'||payload.version!==1)throw new Error('محتوای فایل پشتیبان معتبر نیست.');db.restorePortable(payload.database);if(!db.hasRulePack(rulePackKey))db.installRulePack(defaultRulePackV1);installPolicyFlags();runtime.save(payload.runtime);auth.invalidateSessions();return json(res,200,{ok:true,relogin:true,message:'بازیابی کامل شد. دوباره وارد شوید.'});}
+    if(url.pathname==='/api/restore'&&req.method==='POST'){const passphrase=String(req.headers['x-backup-passphrase']||''),file=await readRaw(req,100_000_000),payload=decryptBackup(file,passphrase);if(payload?.format!=='bourse-monitor-portable'||payload.version!==1)throw new Error('محتوای فایل پشتیبان معتبر نیست.');db.restorePortable(payload.database);db.setSetting(rulePackSetting,'1');installPolicyFlags();runtime.save(payload.runtime);auth.invalidateSessions();return json(res,200,{ok:true,relogin:true,message:'بازیابی کامل شد. دوباره وارد شوید.'});}
     const statusMatch=/^\/api\/monitors\/(\d+)\/status$/.exec(url.pathname);if(statusMatch&&req.method==='PATCH'){const body=await readBody(req);if(!['active','paused','completed','cancelled'].includes(body.status))throw new Error('وضعیت معتبر نیست.');return json(res,200,{monitor:db.updateMonitorStatus(Number(statusMatch[1]),body.status)});}
     const updateMonitorMatch=/^\/api\/monitors\/(\d+)$/.exec(url.pathname);if(updateMonitorMatch&&req.method==='PUT')return json(res,200,{monitor:db.updateMonitor(Number(updateMonitorMatch[1]),validateMonitor(await readBody(req)))});
     const deleteMatch=/^\/api\/monitors\/(\d+)$/.exec(url.pathname);if(deleteMatch&&req.method==='DELETE')return json(res,200,{deleted:db.deleteMonitor(Number(deleteMatch[1]))});
