@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check public/app.js && node --test",
-    "strategy:dry-run": "node scripts/reversal-dry-run.js"
+    "check": "node --check src/server.js && node --check public/app.js && node --test"
   },
   "engines": {
     "node": ">=22.5"
