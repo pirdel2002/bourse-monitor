@@ -393,6 +393,15 @@
 </section>
 <section id="page-settings" class="page">
 <section class="panel">
+<div class="panel-head"><div><h2>تاریخچه روزانه نمادها</h2><p class="note">فایل ZIP خروجی رهاورد با قیمت پایانی و تعدیل عملکردی را وارد کن. فقط ۳۰۰ کندل آخر هر نماد ذخیره می‌شود.</p></div><span id="historyStatus" class="tag">بدون سابقه ورود</span></div>
+<div class="form-grid">
+<div class="field span2"><label>ZIP تاریخچه؛ حداکثر ۳۵ مگابایت</label><input id="historyZip" type="file" accept=".zip,application/zip"></div>
+<div class="field span2" style="align-self:end"><button id="importHistory" class="primary">بارگذاری تاریخچه</button></div>
+</div>
+<div id="historyImportResult" class="note" style="margin-top:12px"></div>
+<div id="historyUnmatched" class="hidden" style="margin-top:14px"><h3>نمادهای تطبیق‌نشده</h3><p class="note">نماد فارسی را وارد و نگاشت را ذخیره کن؛ سپس همان ZIP را دوباره بارگذاری کن.</p><div id="historyMappingRows" class="settings-list"></div><button id="saveHistoryMappings" class="secondary" style="margin-top:10px">ذخیره نگاشت‌ها</button></div>
+</section>
+<section class="panel">
 <div class="panel-head">
 <div>
 <h2>ربات‌های تلگرام</h2>

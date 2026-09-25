@@ -14,6 +14,7 @@ import {sendTelegramMany} from './telegram.js';
 import {RuleEngineV2,conditionCatalogV2,conditionDefinitionsV2,normalizeRuleExpressionV2,validateRuleExpressionV2} from './rule-engine-v2.js';
 import {isMarketWindow} from './schedule.js';
 import {defaultRulePackV1} from './rule-pack-v1.js';
+import {importRahavardZip,saveHistoryMappings} from './history-import.js';
 
 loadDotEnv();
 const config=getConfig(),db=openDatabase(config.dbPath),vault=new SecretVault(process.env.APP_ENCRYPTION_KEY||config.adminToken),runtime=new RuntimeSettings(db,vault,config),auth=new AuthService(db,config.adminToken),quota=new ApiQuota(db,config.quota),engine=new MonitorEngine(config,db,quota,runtime),ruleEngine=new RuleEngineV2(config,db,engine,runtime);
@@ -87,6 +88,9 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/settings'&&req.method==='PUT'){const body=await readBody(req);return json(res,200,{settings:runtime.mergeMasked(body)});}
     if(url.pathname==='/api/settings/test/telegram'&&req.method==='POST'){const body=await readBody(req),targets=runtime.telegramTargets().filter(x=>!body.id||x.id===body.id),result=await sendTelegramMany(targets,'✅ اتصال ربات تلگرام سامانه پایش بورس با موفقیت آزمایش شد.');return json(res,200,{ok:true,sent:result.sent});}
     if(url.pathname==='/api/settings/test/brsapi'&&req.method==='POST'){const result=await engine.refreshCatalog(true);return json(res,200,{ok:true,...result,provider:engine.lastProvider});}
+    if(url.pathname==='/api/history/status'&&req.method==='GET')return json(res,200,{lastImport:db.getDataState('history-import:last'),mappings:Object.keys(db.getDataState('history-symbol-map')||{}).length});
+    if(url.pathname==='/api/history/mappings'&&req.method==='POST'){const body=await readBody(req,200_000),saved=saveHistoryMappings(db,body.mappings);return json(res,200,{ok:true,mappings:Object.keys(saved).length});}
+    if(url.pathname==='/api/history/import'&&req.method==='POST'){const file=await readRaw(req,35_000_000),result=importRahavardZip(file,db,{limit:300});return json(res,200,result);}
     if(url.pathname==='/api/backup'&&req.method==='POST'){const body=await readBody(req,20_000),payload={format:'bourse-monitor-portable',version:1,exportedAt:new Date().toISOString(),database:db.exportPortable(),runtime:runtime.internal()};return binary(res,200,encryptBackup(payload,body.password),`bourse-monitor-${new Date().toISOString().slice(0,10)}.bmon`);}
     if(url.pathname==='/api/restore'&&req.method==='POST'){const passphrase=String(req.headers['x-backup-passphrase']||''),file=await readRaw(req,100_000_000),payload=decryptBackup(file,passphrase);if(payload?.format!=='bourse-monitor-portable'||payload.version!==1)throw new Error('محتوای فایل پشتیبان معتبر نیست.');db.restorePortable(payload.database);if(!db.hasRulePack(rulePackKey))db.installRulePack(defaultRulePackV1);installPolicyFlags();runtime.save(payload.runtime);auth.invalidateSessions();return json(res,200,{ok:true,relogin:true,message:'بازیابی کامل شد. دوباره وارد شوید.'});}
     const statusMatch=/^\/api\/monitors\/(\d+)\/status$/.exec(url.pathname);if(statusMatch&&req.method==='PATCH'){const body=await readBody(req);if(!['active','paused','completed','cancelled'].includes(body.status))throw new Error('وضعیت معتبر نیست.');return json(res,200,{monitor:db.updateMonitorStatus(Number(statusMatch[1]),body.status)});}

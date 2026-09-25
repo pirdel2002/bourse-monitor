@@ -4,7 +4,7 @@
   function g2d(gy,gm,gd){let d=div((gy+div(gm-8,6)+100100)*1461,4)+div(153*mod(gm+9,12)+2,5)+gd-34840408;d=d-div(div(gy+100100+div(gm-8,6),100)*3,4)+752;return d;}
   function d2g(jdn){let j=4*jdn+139361631;j=j+div(div(4*jdn+183187720,146097)*3,4)*4-3908;const i=div(mod(j,1461),4)*5+308,gd=div(mod(i,153),5)+1,gm=mod(div(i,153),12)+1,gy=div(j,1461)-100100+div(8-gm,6);return {gy,gm,gd};}
   function j2d(jy,jm,jd){const r=jalCal(jy,true);return g2d(r.gy,3,r.march)+(jm-1)*31-div(jm,7)*(jm-7)+jd-1;}
-  function d2j(jdn){const g=d2g(jdn),jy=g.gy-621,r=jalCal(jy,false),jdn1f=g2d(g.gy,3,r.march);let k=jdn-jdn1f;if(k>=0){if(k<=185)return {jy,jm:1+div(k,31),jd:mod(k,31)+1};k-=186;}else{const prev=jy-1;k+=179;if(r.leap===1)k++;if(k<0)return d2j(jdn-1);}return {jy,jm:7+div(k,30),jd:mod(k,30)+1};}
+  function d2j(jdn){const g=d2g(jdn);let jy=g.gy-621;const r=jalCal(jy,false),jdn1f=g2d(g.gy,3,r.march);let k=jdn-jdn1f;if(k>=0){if(k<=185)return {jy,jm:1+div(k,31),jd:mod(k,31)+1};k-=186;}else{jy--;k+=179;if(r.leap===1)k++;}return {jy,jm:7+div(k,30),jd:mod(k,30)+1};}
   function toJalaali(gy,gm,gd){return d2j(g2d(gy,gm,gd));}
   function toGregorian(jy,jm,jd){return d2g(j2d(jy,jm,jd));}
   function isLeapJalaaliYear(jy){return jalCal(jy,false).leap===0;}
