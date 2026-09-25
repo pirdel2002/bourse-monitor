@@ -68,6 +68,8 @@
 </button>
 <button data-page="monitors">◉ <span>پایش‌های فعال</span>
 </button>
+<button data-page="portfolio">▤ <span>سبد من</span>
+</button>
 <button data-page="archive">▣ <span>آرشیو پایش‌ها</span>
 </button>
 <button data-page="events">♢ <span>پیام‌ها و هشدارها</span>
@@ -300,6 +302,20 @@
 <section class="panel">
 <div class="panel-head"><h2>Rule Engine v2</h2><span class="note">قواعد اندیکاتوری، سبد و بازار</span></div>
 <div id="v2Rules" class="cards"></div>
+</section>
+</section>
+<section id="page-portfolio" class="page">
+<section class="panel">
+<div class="panel-head"><div><h2>سبد من</h2><p class="note">هشدارهای فروش فقط برای نمادهایی صادر می‌شوند که با تعداد و میانگین خرید معتبر در این بخش ثبت شده‌اند.</p></div><button id="reloadPortfolio" class="secondary small">بازخوانی</button></div>
+<div class="form-grid">
+<div class="field symbol-wrap"><label>نماد</label><input id="portfolioSymbol" class="symbol-ajax" autocomplete="off" placeholder="نماد یا نام شرکت را جست‌وجو کن"></div>
+<div class="field"><label>تعداد سهم</label><input id="portfolioQuantity" type="number" min="1" step="1" placeholder="مثلاً ۶۴۹۳"></div>
+<div class="field"><label>میانگین خرید (ریال)</label><input id="portfolioAvgPrice" type="number" min="1" step="1" placeholder="مثلاً ۱۵۴۰۰"></div>
+<div class="field"><label>&nbsp;</label><div class="actions"><button id="savePortfolio" class="primary">ذخیره در سبد</button><button id="cancelPortfolioEdit" class="secondary hidden">لغو ویرایش</button></div></div>
+</div>
+</section>
+<section class="panel">
+<div id="portfolioPositions" class="cards"></div>
 </section>
 </section>
 <section id="page-archive" class="page">

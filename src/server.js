@@ -93,7 +93,8 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/rules'&&req.method==='POST')return json(res,201,{rule:db.createRuleV2(validateRuleV2(await readBody(req)))});
     if(url.pathname==='/api/monitoring/bulk-delete'&&req.method==='POST'){const body=await readBody(req,200_000),items=Array.isArray(body.items)?body.items.slice(0,2000):[];return json(res,200,db.bulkDeleteMonitoring(items,body.all===true));}
     if(url.pathname==='/api/rules/run'&&req.method==='POST')return json(res,200,await ruleEngine.run());
-    if(url.pathname==='/api/portfolio'&&req.method==='PUT'){const position=db.savePortfolioPosition(await readBody(req));return json(res,200,{position});}
+    if(url.pathname==='/api/portfolio'&&req.method==='GET')return json(res,200,{positions:db.portfolioPositions()});
+    if(url.pathname==='/api/portfolio'&&req.method==='PUT'){const body=await readBody(req),symbol=String(body.symbol||'').trim(),quantity=Math.floor(Number(body.quantity)),avgPrice=Number(body.avgPrice??body.avg_price);if(!symbol)throw new Error('نماد سبد الزامی است.');if(!Number.isInteger(quantity)||quantity<=0)throw new Error('تعداد سهم باید عدد صحیح بزرگ‌تر از صفر باشد.');if(!Number.isFinite(avgPrice)||avgPrice<=0)throw new Error('میانگین خرید باید بزرگ‌تر از صفر باشد.');const position=db.savePortfolioPosition({...body,symbol,quantity,avgPrice});return json(res,200,{position});}
     if(url.pathname==='/api/events'&&req.method==='GET'){const limit=Number(url.searchParams.get('limit')||200),filter={symbol:url.searchParams.get('symbol')||'',monitorId:url.searchParams.get('monitorId'),sent:url.searchParams.get('sent')||''},legacy=db.recentEvents(limit,filter),v2=filter.monitorId?[]:db.recentRuleEventsV2(limit,filter);return json(res,200,{events:[...legacy,...v2].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).slice(0,limit)});}
     if(url.pathname==='/api/quota'&&req.method==='GET')return json(res,200,{usage:db.apiUsage(),limits:config.quota});
     if(url.pathname==='/api/settings'&&req.method==='GET')return json(res,200,{settings:runtime.public()});
@@ -111,6 +112,7 @@ const server=http.createServer(async(req,res)=>{
     const ruleStatusMatch=/^\/api\/rules\/(\d+)\/status$/.exec(url.pathname);if(ruleStatusMatch&&req.method==='PATCH'){const body=await readBody(req);if(!['active','paused'].includes(body.status))throw new Error('وضعیت Rule معتبر نیست.');return json(res,200,{rule:db.updateRuleStatusV2(Number(ruleStatusMatch[1]),body.status)});}
     const updateRuleMatch=/^\/api\/rules\/(\d+)$/.exec(url.pathname);if(updateRuleMatch&&req.method==='PUT')return json(res,200,{rule:db.updateRuleV2(Number(updateRuleMatch[1]),validateRuleV2(await readBody(req)))});
     const ruleDeleteMatch=/^\/api\/rules\/(\d+)$/.exec(url.pathname);if(ruleDeleteMatch&&req.method==='DELETE')return json(res,200,{deleted:db.deleteRuleV2(Number(ruleDeleteMatch[1]))});
+    const portfolioDeleteMatch=/^\/api\/portfolio\/(.+)$/.exec(url.pathname);if(portfolioDeleteMatch&&req.method==='DELETE')return json(res,200,{deleted:db.deletePortfolioPosition(decodeURIComponent(portfolioDeleteMatch[1]))});
     const runMatch=/^\/api\/monitors\/(\d+)\/run$/.exec(url.pathname);if(runMatch&&req.method==='POST')return json(res,200,await engine.runDue({forceMonitorId:Number(runMatch[1])}));
     if(url.pathname==='/api/run-due'&&req.method==='POST')return json(res,200,await engine.runDue());
     return json(res,404,{error:'یافت نشد'});

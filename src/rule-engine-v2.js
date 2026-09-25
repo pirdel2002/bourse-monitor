@@ -3,6 +3,7 @@ import {resolveActionableOrder} from './actionable-order.js';
 import {isMarketWindow} from './schedule.js';
 
 const finite=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
+const sellActions=new Set(['SELL_ALERT','PARTIAL_PROFIT','PROFIT_REVIEW','EXIT_ALERT','MOVE_STOP','TRAILING_STOP']);
 const fa=value=>finite(value)?Number(value).toLocaleString('fa-IR',{maximumFractionDigits:2}):'داده ناکافی';
 const get=(context,key)=>key.split('.').reduce((value,part)=>value?.[part],context);
 const result=(active,description,values={})=>({state:active?'active':'inactive',description,values});
@@ -151,6 +152,8 @@ export class RuleEngineV2{
         const cash=savedCash?{...savedCash,availableToman:Number(savedCash.availableToman)-reservedToman}:null;
         const order=executable?resolveActionableOrder(rule,context,cash):null;
         const evaluated=evaluateRuleExpression(rule.expression,context);
+        const activePosition=Number(context.portfolio?.quantity)>0&&Number(context.portfolio?.avg_price)>0;
+        if(sellActions.has(rule.action)&&!activePosition){evaluated.state='insufficient';evaluated.description='این نماد در سبد فعال تعریف نشده است؛ هشدار فروش ارسال نمی‌شود.';}
         // An active analysis without a valid order is not an actionable signal.
         if(executable&&(!order||(riskOff&&rule.action==='BUY_ALERT')||!isMarketWindow(this.config.marketSchedule||{timeZone:'Asia/Tehran',start:'09:00',end:'12:30'},now))&&evaluated.state==='active')evaluated.state='insufficient';
         const state=this.db.ruleStateV2(rule.id),transition=evaluated.state==='active'&&state?.state==='inactive';

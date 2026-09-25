@@ -5,6 +5,7 @@ import {sendMonitorAlertMany} from './telegram.js';
 import {buildIndicatorAnalysis,makeLiveCandle} from './indicator-engine.js';
 
 const nowIso=()=>new Date().toISOString();
+const sellMonitorActions=new Set(['SELL_STOP_LOSS','SELL_TAKE_PROFIT']);
 
 export class MonitorEngine{
   constructor(config,db,quota,runtime=null){this.config=config;this.db=db;this.quota=quota;this.runtime=runtime;this.running=false;this.lastRunAt=null;this.lastError=null;this.lastProvider=null;}
@@ -74,6 +75,11 @@ export class MonitorEngine{
   async evaluateMonitor(monitor,row){
     if(!Number.isFinite(Number(row.lastPrice))||Number(row.lastPrice)<=0||/(ممنوع|متوقف|بسته)/.test(String(row.state||''))){
       const result={state:'insufficient',description:`وضعیت داده یا نماد معتبر نیست: ${row.state||'قیمت نامعتبر'}`};
+      this.db.addEvent(monitor.id,'insufficient',result,row,false);const schedule=this.nextSchedule(monitor);this.db.updateAfterRun(monitor.id,{state:'insufficient',...schedule});return {monitorId:monitor.id,symbol:monitor.symbol,state:'insufficient',result,telegramSent:false};
+    }
+    const position=this.db.portfolioPosition(monitor.symbol);
+    if(sellMonitorActions.has(monitor.actionType)&&!(Number(position?.quantity)>0&&Number(position?.avg_price)>0)){
+      const result={state:'insufficient',description:'این نماد در سبد فعال تعریف نشده است؛ هشدار فروش ارسال نمی‌شود.'};
       this.db.addEvent(monitor.id,'insufficient',result,row,false);const schedule=this.nextSchedule(monitor);this.db.updateAfterRun(monitor.id,{state:'insufficient',...schedule});return {monitorId:monitor.id,symbol:monitor.symbol,state:'insufficient',result,telegramSent:false};
     }
     const observedAt=nowIso();
