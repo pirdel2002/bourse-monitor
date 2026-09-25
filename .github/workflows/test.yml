@@ -10,4 +10,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm test
+      - run: npm run check
+      - run: docker build -t bourse-monitor:ci .
