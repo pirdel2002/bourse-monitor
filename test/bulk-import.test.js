@@ -1,0 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {parseBulkMonitors} from '../src/bulk-import.js';
+
+test('parses multiple Persian monitor blocks in Tehran time',()=>{const rows=parseBulkMonitors(`عنوان: خرید فولاد\nنماد: فولاد\nاقدام: خرید\nتعداد: ۱۰۰۰\nقیمت پیشنهادی: ۳۳۵۰\nشروع: اکنون\nپایان: یک ساعت دیگر\nشرط: قیمت بیشتر از 3300\n---\nعنوان: حد زیان\nنماد: وبملت\nاقدام: حد زیان\nتعداد: 500\nقیمت پیشنهادی: 2400\nشروع: 2026-09-26 09:30\nپایان: 2026-09-26 12:30\nشرط: قیمت کمتر از 2400`,new Date('2026-09-25T09:00:00Z'));assert.equal(rows.length,2);assert.equal(rows[0].actionType,'BUY');assert.equal(rows[0].quantity,1000);assert.equal(rows[1].actionType,'SELL_STOP_LOSS');assert.equal(rows[1].startAt,'2026-09-26T06:00:00.000Z');});
+test('accepts JSON monitor package',()=>{const [row]=parseBulkMonitors(JSON.stringify([{title:'x',symbol:'فولاد',actionType:'خرید',quantity:1,proposedPrice:2,startAt:'اکنون',endAt:'یک ساعت دیگر',sourceText:'قیمت بیشتر از 1'}]));assert.equal(row.symbol,'فولاد');assert.equal(row.actionType,'BUY');});

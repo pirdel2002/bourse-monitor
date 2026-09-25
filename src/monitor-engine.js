@@ -1,19 +1,24 @@
 import {fetchBrsSymbols} from './providers/brsapi.js';
 import {fetchMockSymbols} from './providers/mock.js';
 import {evaluateExpression} from './conditions.js';
-import {sendMonitorAlert} from './telegram.js';
+import {sendMonitorAlertMany} from './telegram.js';
 
 const nowIso=()=>new Date().toISOString();
 
 export class MonitorEngine{
-  constructor(config,db,quota){this.config=config;this.db=db;this.quota=quota;this.running=false;this.lastRunAt=null;this.lastError=null;}
+  constructor(config,db,quota,runtime=null){this.config=config;this.db=db;this.quota=quota;this.runtime=runtime;this.running=false;this.lastRunAt=null;this.lastError=null;this.lastProvider=null;}
 
   async marketRows({force=false}={}){
     const cacheKey='market:all-symbols';
     if(!force){const cached=this.db.cacheGet(cacheKey);if(cached)return cached;}
-    let rows;
-    if(this.config.provider==='mock') rows=await fetchMockSymbols();
-    else if(this.config.provider==='brsapi') rows=await fetchBrsSymbols(this.config.brs,endpoint=>this.quota.reserve(endpoint));
+    let rows;const providerMode=this.runtime?.hasApiProviders?.()?'brsapi':this.config.provider;
+    if(providerMode==='mock') rows=await fetchMockSymbols();
+    else if(providerMode==='brsapi'){
+      const providers=this.runtime?.orderedProviders?.()||[{id:'default',...this.config.brs}],errors=[];
+      if(!providers.length)throw new Error('هیچ کلید فعال BRSAPI تعریف نشده است.');
+      for(const provider of providers){try{rows=await fetchBrsSymbols(provider,endpoint=>this.quota.reserve(endpoint,new Date(),provider.id));this.runtime?.reportProvider?.(provider.id,true);this.lastProvider=provider.name||provider.id;break;}catch(error){this.runtime?.reportProvider?.(provider.id,false);errors.push(`${provider.name||provider.id}: ${error.message}`);}}
+      if(!rows)throw new Error(`همه مسیرهای BRSAPI ناموفق بودند؛ ${errors.join(' | ')}`);
+    }
     else throw new Error(`منبع داده ناشناخته است: ${this.config.provider}`);
     const expires=new Date(Date.now()+this.config.marketCacheSeconds*1000).toISOString();
     this.db.cacheSet(cacheKey,rows,expires); this.db.upsertSymbols(rows); return rows;
@@ -49,7 +54,8 @@ export class MonitorEngine{
     const result=evaluateExpression(monitor.expression,{...row,observedAt},history);
     let notified=false;
     if(this.shouldNotify(monitor,result)){
-      const sent=await sendMonitorAlert(this.config.telegram,monitor,row,result);
+      const targets=this.runtime?.telegramTargets?.()||[this.config.telegram];
+      const sent=await sendMonitorAlertMany(targets,monitor,row,result);
       notified=!sent.skipped;
     }
     this.db.addEvent(monitor.id,result.state,result,row,notified);
@@ -75,5 +81,5 @@ export class MonitorEngine{
     }catch(error){this.lastError=error.message;throw error;}finally{this.running=false;}
   }
 
-  status(){return {provider:this.config.provider,running:this.running,lastRunAt:this.lastRunAt,lastError:this.lastError};}
+  status(){return {provider:this.runtime?.hasApiProviders?.()?'brsapi':this.config.provider,running:this.running,lastRunAt:this.lastRunAt,lastError:this.lastError,lastProvider:this.lastProvider};}
 }

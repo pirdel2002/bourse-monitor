@@ -1,0 +1,21 @@
+import {randomUUID} from 'node:crypto';
+
+const cleanBot=x=>({id:String(x.id||randomUUID()),name:String(x.name||'ربات تلگرام').slice(0,80),token:String(x.token||''),chatId:String(x.chatId||''),enabled:x.enabled!==false,primary:Boolean(x.primary)});
+const cleanApi=(x,base)=>({id:String(x.id||randomUUID()),name:String(x.name||'BRSAPI').slice(0,80),apiKey:String(x.apiKey||''),enabled:x.enabled!==false,priority:Math.max(1,Number(x.priority||1)),baseUrl:String(x.baseUrl||base.baseUrl),allSymbolsPath:String(x.allSymbolsPath||base.allSymbolsPath),allSymbolsType:Number(x.allSymbolsType||base.allSymbolsType||1),symbolPath:String(x.symbolPath||base.symbolPath),indexPath:String(x.indexPath||base.indexPath),candlePath:String(x.candlePath||base.candlePath),apiKeyHeader:String(x.apiKeyHeader||base.apiKeyHeader||'X-API-Key'),apiKeyQuery:String(x.apiKeyQuery||base.apiKeyQuery||'key'),userAgent:String(x.userAgent||base.userAgent)});
+
+export class RuntimeSettings{
+  constructor(db,vault,config){this.db=db;this.vault=vault;this.config=config;this.roundRobin=0;this.health=new Map();this.data=this.load();}
+  defaults(){return {timezone:'Asia/Tehran',apiMode:'fallback',telegramBots:this.config.telegram.token?[cleanBot({name:'ربات اصلی',token:this.config.telegram.token,chatId:this.config.telegram.chatId,primary:true})]:[],apiProviders:this.config.brs.apiKey?[cleanApi({name:'BRSAPI اصلی',apiKey:this.config.brs.apiKey,priority:1},this.config.brs)]:[]};}
+  load(){const encrypted=this.db.getSetting('runtime.integrations');if(!encrypted)return this.defaults();try{return this.normalize(this.vault.decrypt(encrypted));}catch(error){console.error('runtime settings:',error.message);return this.defaults();}}
+  reload(){this.data=this.load();return this.public();}
+  normalize(input){const modes=['balance','automatic','fallback'];const data={timezone:'Asia/Tehran',apiMode:modes.includes(input?.apiMode)?input.apiMode:'fallback',telegramBots:Array.isArray(input?.telegramBots)?input.telegramBots.map(cleanBot):[],apiProviders:Array.isArray(input?.apiProviders)?input.apiProviders.map(x=>cleanApi(x,this.config.brs)):[]};if(data.telegramBots.length&&!data.telegramBots.some(x=>x.primary))data.telegramBots[0].primary=true;return data;}
+  save(input){this.data=this.normalize(input);this.db.setSetting('runtime.integrations',this.vault.encrypt(this.data));return this.public();}
+  internal(){return structuredClone(this.data);}
+  public(){return {...structuredClone(this.data),telegramBots:this.data.telegramBots.map(x=>({...x,token:x.token?`••••${x.token.slice(-5)}`:''})),apiProviders:this.data.apiProviders.map(x=>({...x,apiKey:x.apiKey?`••••${x.apiKey.slice(-4)}`:''}))};}
+  mergeMasked(input){const current=this.data;const bots=(input.telegramBots||[]).map(x=>{const old=current.telegramBots.find(y=>y.id===x.id);return {...x,token:String(x.token||'').startsWith('••••')?(old?.token||''):x.token};});const apis=(input.apiProviders||[]).map(x=>{const old=current.apiProviders.find(y=>y.id===x.id);return {...x,apiKey:String(x.apiKey||'').startsWith('••••')?(old?.apiKey||''):x.apiKey};});return this.save({...input,telegramBots:bots,apiProviders:apis});}
+  telegramTargets(){return this.data.telegramBots.filter(x=>x.enabled&&x.token&&x.chatId).map(x=>({id:x.id,name:x.name,token:x.token,chatId:x.chatId}));}
+  hasApiProviders(){return this.data.apiProviders.some(x=>x.enabled&&x.apiKey);}
+  primaryTelegram(){const targets=this.data.telegramBots.filter(x=>x.enabled&&x.token&&x.chatId);return targets.find(x=>x.primary)||targets[0]||null;}
+  orderedProviders(){const providers=this.data.apiProviders.filter(x=>x.enabled&&x.apiKey);if(!providers.length)return[];if(this.data.apiMode==='fallback')return providers.sort((a,b)=>a.priority-b.priority);if(this.data.apiMode==='balance'){const start=this.roundRobin++%providers.length;return [...providers.slice(start),...providers.slice(0,start)];}return providers.sort((a,b)=>{const ah=this.health.get(a.id)||{failures:0,lastUsed:0},bh=this.health.get(b.id)||{failures:0,lastUsed:0};return ah.failures-bh.failures||ah.lastUsed-bh.lastUsed||a.priority-b.priority;});}
+  reportProvider(id,ok){const old=this.health.get(id)||{failures:0,lastUsed:0};this.health.set(id,{failures:ok?Math.max(0,old.failures-1):old.failures+1,lastUsed:Date.now()});}
+}

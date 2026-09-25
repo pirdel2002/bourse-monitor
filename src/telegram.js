@@ -37,6 +37,15 @@ export async function sendTelegram(config,text){
 
 export async function sendMonitorAlert(config,monitor,snapshot,result){return sendTelegram(config,formatMonitorAlert(monitor,snapshot,result));}
 
+export async function sendTelegramMany(configs,text){
+  const targets=Array.isArray(configs)?configs:configs?[configs]:[];if(!targets.length)return {skipped:true,results:[]};
+  const settled=await Promise.allSettled(targets.map(config=>sendTelegram(config,text)));const ok=settled.filter(x=>x.status==='fulfilled'&&!x.value?.skipped).length;
+  if(!ok){const reason=settled.find(x=>x.status==='rejected')?.reason;throw reason||new Error('هیچ ربات تلگرامی برای ارسال فعال نیست.');}
+  return {skipped:false,sent:ok,failed:settled.length-ok,results:settled};
+}
+
+export async function sendMonitorAlertMany(configs,monitor,snapshot,result){return sendTelegramMany(configs,formatMonitorAlert(monitor,snapshot,result));}
+
 export function formatSignal(signal){
   return [`📊 ${signal.symbol} — ${signal.action}`,`امتیاز: ${signal.score}/100`,`قیمت: ${fa(signal.price)}`,signal.stopLoss?`حد زیان پیشنهادی: ${fa(signal.stopLoss)}`:null,signal.takeProfit?`هدف اولیه: ${fa(signal.takeProfit)}`:null].filter(Boolean).join('\n');
 }
