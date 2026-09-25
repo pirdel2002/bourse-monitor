@@ -36,6 +36,25 @@ const migrations=[
     ALTER TABLE rules_v2 ADD COLUMN next_run_at TEXT;
     UPDATE rules_v2 SET next_run_at=COALESCE(start_at,created_at) WHERE next_run_at IS NULL;
     CREATE INDEX IF NOT EXISTS idx_rules_v2_next_run ON rules_v2(enabled,status,next_run_at);
+  `},
+  {version:3,sql:`
+    ALTER TABLE portfolio_positions ADD COLUMN initial_stop_price REAL;
+    CREATE TABLE IF NOT EXISTS strategy_symbol_states (
+      strategy_key TEXT NOT NULL,
+      symbol TEXT NOT NULL,
+      state TEXT NOT NULL,
+      buy_enabled INTEGER NOT NULL DEFAULT 1,
+      trigger_rule_id TEXT,
+      last_decision TEXT,
+      last_reason_json TEXT NOT NULL DEFAULT '{}',
+      triggered_at TEXT,
+      confirmed_at TEXT,
+      last_notified_at TEXT,
+      last_notified_day TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(strategy_key,symbol)
+    );
+    CREATE INDEX IF NOT EXISTS idx_strategy_symbol_states_state ON strategy_symbol_states(strategy_key,state,updated_at);
   `}
 ];
 
