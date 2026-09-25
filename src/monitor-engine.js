@@ -2,7 +2,7 @@ import {fetchBrsSymbols,fetchBrsCandles,fetchBrsIndex} from './providers/brsapi.
 import {fetchMockSymbols,fetchMockIndex} from './providers/mock.js';
 import {evaluateExpression} from './conditions.js';
 import {sendMonitorAlertMany} from './telegram.js';
-import {buildIndicatorAnalysis} from './indicator-engine.js';
+import {buildIndicatorAnalysis,makeLiveCandle} from './indicator-engine.js';
 
 const nowIso=()=>new Date().toISOString();
 
@@ -45,9 +45,9 @@ export class MonitorEngine{
 
   async ruleContext(symbol,row,market){
     if(!row)return {current:{},previous:{},liveHistory:[],portfolio:null,market};
-    const candles=await this.candlesFor(symbol),analysis=buildIndicatorAnalysis(candles,row),history=this.db.symbolTickHistory(symbol,50),previous=history.at(-1)||{},batchId=`${row.date||'live'}:${row.time||Math.floor(Date.now()/300000)}`;
+    let candles=this.db.candles(symbol,this.config.candleCount||120),historyError=null;try{candles=await this.candlesFor(symbol);}catch(error){historyError=error.message;}const live=makeLiveCandle(row);if(live.date&&live.close>0)this.db.upsertCandles(symbol,[live],'all-symbols-live',1);const analysis=buildIndicatorAnalysis(candles,row);if(historyError&&!analysis.valid)analysis.reason=`${analysis.reason||'داده تاریخی کافی نیست.'} ${historyError}`;const history=this.db.symbolTickHistory(symbol,50),previous=history.at(-1)||{},batchId=`${row.date||'live'}:${row.time||Math.floor(Date.now()/300000)}`;
     const current=analysis.context||{price:row.lastPrice,close:row.closePrice};this.db.addSymbolTick(batchId,symbol,current);
-    const position=this.db.portfolioPosition(symbol);if(position&&position.quantity>0&&position.avg_price>0)position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;
+    let position=this.db.portfolioPosition(symbol);if(position&&position.quantity>0&&position.avg_price>0){this.db.updatePortfolioHigh(symbol,current.price);position=this.db.portfolioPosition(symbol);position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;}
     return {current,previous,liveHistory:history,portfolio:position,market,analysis};
   }
 

@@ -202,7 +202,8 @@
 </div>
 <div class="tabs">
 <button id="textTab" class="active">شرط نوشتاری</button>
-<button id="builderTab">قاعده‌ساز AND/OR</button>
+<button id="builderTab">قاعده‌ساز تابلو</button>
+<button id="indicatorBuilderTab">قاعده‌ساز اندیکاتورها</button>
 </div>
 <div id="textMode">
 <div class="field">
@@ -217,6 +218,17 @@
 <div id="builderMode" class="hidden">
 <div id="builder">
 </div>
+</div>
+<div id="indicatorBuilderMode" class="hidden">
+<div class="form-grid" style="margin-bottom:12px">
+<div class="field"><label>دامنه Rule</label><select id="v2Scope"><option value="SYMBOL">نماد</option><option value="PORTFOLIO">نماد موجود در سبد</option><option value="MARKET">کل بازار</option></select></div>
+<div class="field"><label>شدت</label><select id="v2Severity"><option value="INFO">اطلاع</option><option value="WATCH">پایش</option><option value="BUY" selected>خرید</option><option value="STRONG_BUY">خرید قوی</option><option value="WARNING">هشدار</option><option value="SELL">فروش</option><option value="EXIT">خروج</option></select></div>
+<div class="field"><label>اقدام</label><select id="v2Action"></select></div>
+<div class="field"><label>Cooldown (دقیقه)</label><input id="v2Cooldown" type="number" min="1" value="45"></div>
+</div>
+<label class="check-row"><input id="v2OncePerDay" type="checkbox"> حداکثر یک هشدار در هر روز</label>
+<div id="v2Builder"></div>
+<p class="note">اندیکاتورها داخل برنامه محاسبه می‌شوند. افزودن چند شرط، API جداگانه مصرف نمی‌کند.</p>
 </div>
 <div class="actions" style="margin-top:15px">
 <button id="save" class="primary">ذخیره و فعال‌سازی</button>
@@ -279,6 +291,10 @@
 </div>
 <div id="monitors" class="cards">
 </div>
+</section>
+<section class="panel">
+<div class="panel-head"><h2>Rule Engine v2</h2><span class="note">قواعد اندیکاتوری، سبد و بازار</span></div>
+<div id="v2Rules" class="cards"></div>
 </section>
 </section>
 <section id="page-archive" class="page">

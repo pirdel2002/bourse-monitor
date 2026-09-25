@@ -70,6 +70,7 @@ export function buildIndicatorAnalysis(history,liveRow=null){
   };
   const early=[macd_hist,macd_hist_prev1,macd_hist_prev2].every(finite)&&macd_hist<0&&macd_hist>macd_hist_prev1&&macd_hist_prev1>macd_hist_prev2,near=early&&Math.abs(macd_hist)<=.15*Math.max(Math.abs(macd_signal||0),Math.abs(last)*.0001),bull=finite(macd_line)&&finite(macd_signal)&&finite(lastFinite(macdLine,1))&&finite(lastFinite(macdSignal,1))&&macd_line>macd_signal&&lastFinite(macdLine,1)<=lastFinite(macdSignal,1);
   const signals={macd_recovery_early:early,macd_recovery_near_zero:near,macd_bullish_cross:bull,obv_turn_up:finite(obvNow)&&finite(lastFinite(obv,1))&&finite(lastFinite(obv,2))&&obvNow>lastFinite(obv,1)&&lastFinite(obv,1)<=lastFinite(obv,2),atr_expanding:finite(atr14)&&finite(atr5)&&atr14>atr5};
+  const scoreReady=[context.rsi14,context.mfi14,context.obv,context.obv_prev1,context.obv_prev2,context.volume_ratio_20,context.buyer_power,context.price,context.ema20,context.ema50].every(finite);context.tech_recovery_score=scoreReady?Number(early)+Number(context.rsi14>50)+Number(context.mfi14>50)+Number(signals.obv_turn_up)+Number(context.volume_ratio_20>1.3)+Number(context.buyer_power>1.2)+Number(context.price>context.ema20)+Number(context.ema20>context.ema50):null;
   const rows=[
     {group:'oscillator',name:'RSI (14)',value:context.rsi14,status:context.rsi14>=70?'اشباع خرید':context.rsi14<=30?'اشباع فروش':context.rsi14>=50?'مثبت':'ضعیف'},
     {group:'oscillator',name:'MFI (14)',value:context.mfi14,status:context.mfi14>=80?'اشباع خرید':context.mfi14<=20?'اشباع فروش':context.mfi14>=50?'ورود نقدینگی':'کم‌رمق'},
@@ -83,7 +84,8 @@ export function buildIndicatorAnalysis(history,liveRow=null){
     {group:'trend',name:'EMA (50)',value:context.ema50,distance:round(percentDistance(context.price,context.ema50)),status:context.price>=context.ema50?'قیمت بالاتر':'قیمت پایین‌تر'},
     {group:'trend',name:'EMA20/50 Gap',value:context.ema20_ema50_gap_pct,status:context.ema20_ema50_gap_pct<=8?'فشرده':'باز'},
     {group:'volatility',name:'ATR (14)',value:context.atr14,status:signals.atr_expanding?'در حال گسترش':'عادی'},
-    {group:'volatility',name:'BBW',value:context.bbw,status:context.bbw!=null&&context.bbw<=.15?'فشردگی':'عادی'}
+    {group:'volatility',name:'BBW',value:context.bbw,status:context.bbw!=null&&context.bbw<=.15?'فشردگی':'عادی'},
+    {group:'composite',name:'Tech Recovery Score',value:context.tech_recovery_score,status:context.tech_recovery_score==null?'داده ناکافی':context.tech_recovery_score>=6?'بسیار قوی':context.tech_recovery_score>=5?'قوی':'تأیید ناکافی'}
   ];
   const positive=rows.filter(x=>/مثبت|قوی|بهبود|صعودی|بالاتر|ورود|کراس|خروج اولیه/.test(x.status)).length,negative=rows.filter(x=>/ضعیف|منفی|نزولی|پایین‌تر/.test(x.status)).length;
   return {valid:candles.length>=50,reason:candles.length>=50?null:'برای EMA50 حداقل ۵۰ کندل لازم است.',candleCount:candles.length,asOf:candles.at(-1).date,context,signals,rows,summary:{positive,negative,neutral:rows.length-positive-negative,label:positive>negative+2?'مثبت':negative>positive+2?'منفی':'خنثی'}};
