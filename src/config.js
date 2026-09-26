@@ -31,6 +31,7 @@ export function getConfig() {
     adminToken: secret('ADMIN_TOKEN'),
     publicUrl: secret('PUBLIC_URL'),
     retentionDays: Math.max(7,number('RETENTION_DAYS',90)),
+    eventRetentionDays: Math.max(1,number('EVENT_RETENTION_DAYS',3)),
     cooldownMinutes: Math.max(1, number('SIGNAL_COOLDOWN_MINUTES', 30)),
     minSignalScore: Math.min(100, Math.max(0, number('MIN_SIGNAL_SCORE', 65))),
     scanScope: process.env.SCAN_SCOPE === 'watchlist' ? 'watchlist' : 'all',

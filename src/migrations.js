@@ -57,7 +57,10 @@ const migrations=[
     CREATE INDEX IF NOT EXISTS idx_strategy_symbol_states_state ON strategy_symbol_states(strategy_key,state,updated_at);
   `},
   {version:4,sql:`
-    ALTER TABLE portfolio_positions ADD COLUMN buy_fee_pct REAL NOT NULL DEFAULT 0.3712;
+    ALTER TABLE portfolio_positions ADD COLUMN buy_fee_pct REAL NOT NULL DEFAULT 1.262;
+  `},
+  {version:5,sql:`
+    UPDATE portfolio_positions SET buy_fee_pct=1.262 WHERE ABS(buy_fee_pct-0.3712)<0.000001;
   `}
 ];
 
