@@ -64,7 +64,21 @@ function exitDecision(position,context){
   return {symbol:position.symbol,avgEntry:stop.avg,currentPrice:stop.price,profitPct:stop.profit,highestSinceEntry:stop.high,initialStop:stop.initial,currentStop:stop.current,trailingStopStatus:stop.status,weaknessMatchCount:weaknessMatches,weaknessEvidence:weakness.map(conditionSummary),majorSupport:null,exitRule,finalDecision};
 }
 
+function exitShortReason(report){
+  if(report.exitRule==='HARD_STOP')return `زیان ${Math.abs(report.profitPct).toLocaleString('fa-IR',{maximumFractionDigits:2})}٪ به حد توقف ۸٪ رسیده است`;
+  if(report.exitRule==='POSITION_STOP_HIT')return `قیمت ${Math.round(report.currentPrice).toLocaleString('fa-IR')} به حد توقف ${Math.round(report.currentStop).toLocaleString('fa-IR')} رسیده است`;
+  if(report.finalDecision==='TAKE_PROFIT')return `سود ${report.profitPct.toLocaleString('fa-IR',{maximumFractionDigits:2})}٪ و ${report.weaknessMatchCount.toLocaleString('fa-IR')} نشانه ضعف؛ سیو سود پله‌ای`;
+  if(report.finalDecision==='REDUCE_POSITION')return `${report.weaknessMatchCount.toLocaleString('fa-IR')} نشانه ضعف تکنیکال هم‌زمان فعال است`;
+  return 'سیگنال خروج فعالی وجود ندارد';
+}
+
 function cachedContext(db,symbol,row,market={},userId=null){const candles=db.candles(symbol,160),analysis=buildIndicatorAnalysis(candles,row||null),history=db.symbolTickHistory(symbol,50),position=db.portfolioPosition(symbol,userId),current=analysis.context||{price:row?.lastPrice,close:row?.closePrice};if(position&&position.avg_price>0&&finite(current.price))position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;return {current,previous:history.at(-1)||{},liveHistory:history,portfolio:position,market,marketRow:row||{},analysis};}
+
+export function buildExitSignalRanking(db,rows,userId){
+  const positions=db.portfolioPositions(userId),bySymbol=new Map((rows||[]).map(row=>[row.symbol,row])),items=positions.map(position=>{const row=bySymbol.get(position.symbol)||null,context=cachedContext(db,position.symbol,row,{},userId),report=exitDecision(position,context),quantity=Number(position.quantity)||0,suggestedAction=report.finalDecision==='SELL_ALL'?'SELL':report.finalDecision==='TAKE_PROFIT'?'SELL_PARTIAL':report.finalDecision==='REDUCE_POSITION'?'REDUCE':'HOLD',suggestedQuantity=report.finalDecision==='SELL_ALL'?quantity:report.finalDecision==='TAKE_PROFIT'?Math.max(1,Math.floor(quantity*.25)):null;return {...report,name:row?.name||position.symbol,quantity,suggestedAction,suggestedQuantity,shortReason:exitShortReason(report),indicators:context.analysis?.context||{}};});
+  const priority={SELL_ALL:4,STRUCTURAL_SELL_ALL:3,TAKE_PROFIT:2,REDUCE_POSITION:1,HOLD:0},actionable=items.filter(item=>item.finalDecision!=='HOLD').sort((a,b)=>priority[b.finalDecision]-priority[a.finalDecision]||a.symbol.localeCompare(b.symbol,'fa'));
+  return {generatedAt:new Date().toISOString(),evaluatedPositions:items.length,signalCount:actionable.length,items:actionable};
+}
 
 function decisionMessage(report){return [`🚨 ${report.symbol} — ${report.finalState||report.finalDecision}`,report.reason||`Rule: ${report.exitRule}`,report.trigger?`Trigger: ${report.trigger}`:null,report.momentumMatches!==undefined?`Momentum: ${report.momentumMatches}`:null,report.flowMatches!==undefined?`Flow: ${report.flowMatches}`:null,report.currentPrice?`قیمت: ${Math.round(report.currentPrice).toLocaleString('fa-IR')} ریال`:null,'این پیام سفارش خودکار نیست.'].filter(Boolean).join('\n');}
 

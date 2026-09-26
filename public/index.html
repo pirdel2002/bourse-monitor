@@ -73,6 +73,8 @@
 </button>
 <button data-page="opportunities">↗ <span>سیگنال خرید</span>
 </button>
+<button data-page="exit-signals">↘ <span>سیگنال خروج</span>
+</button>
 <button data-page="market-overview">▦ <span>گزارش برترین‌های بازار</span>
 </button>
 <button data-page="monitors">◉ <span>پایش‌های فعال</span>
@@ -305,11 +307,19 @@
 <section class="panel opportunity-guide">
 <div class="panel-head"><div><h2>مدل امتیازدهی</h2><p class="note">Opportunity کیفیت فرصت است؛ Confirmation با سقف‌های مومنتوم، جریان پول و قیمت کنترل می‌شود. داده مفقود صفر نمی‌گیرد، اما شروط ایمنی حذف نمی‌شوند.</p></div><span class="tag">Opportunity v3</span></div>
 <div class="score-weight-grid"><span>روند <b>۱۵</b></span><span>مومنتوم <b>۲۰</b></span><span>پول و حجم <b>۲۵</b></span><span>ساختار <b>۱۵</b></span><span>نوسان <b>۱۰</b></span><span>بنیادی <b>۱۰</b></span><span>ریسک/بازده <b>۵</b></span></div>
+<div class="term-help"><span title="کیفیت کلی فرصت؛ بالا بودن آن به معنی دستور خرید نیست.">Opportunity <b>?</b></span><span title="میزان تأیید حرکت فعلی.">Confirmation <b>?</b></span><span title="نوع ساختار فرصت معاملاتی.">Setup <b>?</b></span><span title="روش مناسب ورود به معامله.">Entry <b>?</b></span><span title="اقدام یا وضعیت فعلی سهم در موتور تصمیم‌گیری.">State <b>?</b></span><span title="کنترل می‌کند سهم را در قیمت بیش از حد بالا تعقیب نکنیم.">No-Chase <b>?</b></span><span title="نسبت بازده بالقوه به ریسک تا حدضرر.">R/R <b>?</b></span><span title="محدودکننده Confirmation بر اساس وضعیت مومنتوم.">MomentumGate <b>?</b></span><span title="محدودکننده Confirmation بر اساس حجم و جریان پول.">FlowGate <b>?</b></span><span title="محدودکننده Confirmation بر اساس مناسب‌بودن قیمت ورود.">PriceGate <b>?</b></span></div>
 </section>
 <section class="panel">
-<div class="panel-head"><div><h2>جدول ۱۰۰ فرصت اول</h2><p class="note">برای مرتب‌سازی روی عنوان هر ستون بزن. نام نماد تحلیل اندیکاتورها را باز می‌کند.</p></div><div class="field opportunity-filter"><label>فیلتر وضعیت</label><select id="opportunityStateFilter"><option value="">همه وضعیت‌ها</option><option value="BUY_CANDIDATE">کاندید خرید</option><option value="EARLY_ENTRY">ورود زودهنگام</option><option value="PULLBACK_ENTRY">ورود روی پولبک</option><option value="BREAKOUT_ENTRY">ورود روی شکست</option><option value="SECOND_ENTRY_CANDIDATE">پله دوم سبد</option><option value="WAIT_FOR_TRIGGER">منتظر Trigger</option><option value="WAIT_FOR_PULLBACK">منتظر پولبک</option><option value="WAIT_FOR_PULLBACK_OR_BREAKOUT">منتظر پولبک یا شکست</option><option value="WAIT_FOR_BREAKOUT_CONFIRMATION">منتظر تأیید شکست</option><option value="WAIT_FOR_RISK_REWARD">منتظر نسبت ریسک/بازده</option><option value="WAIT_FOR_RISK_DATA">منتظر Stop/Target</option><option value="RULE_WATCH">زیرنظر</option><option value="REJECT">بدون اقدام</option></select></div></div>
+<div class="panel-head"><div><h2>جدول ۱۰۰ فرصت اول</h2><p class="note">برای مرتب‌سازی روی عنوان هر ستون بزن. نام نماد تحلیل اندیکاتورها را باز می‌کند.</p></div><div class="field opportunity-filter"><label>فیلتر وضعیت</label><select id="opportunityStateFilter"><option value="">همه وضعیت‌ها</option><optgroup label="قابل اقدام"><option value="PULLBACK_ENTRY">ورود روی پولبک</option><option value="EARLY_ENTRY">ورود زودهنگام</option><option value="BREAKOUT_ENTRY">ورود روی شکست</option><option value="SECOND_ENTRY_CANDIDATE">پله دوم سبد</option></optgroup><optgroup label="نزدیک به ورود"><option value="BUY_CANDIDATE">کاندید؛ هنوز بدون ورود</option><option value="WAIT_FOR_TRIGGER">منتظر سیگنال ورود</option><option value="WAIT_FOR_BREAKOUT_CONFIRMATION">منتظر تأیید شکست</option><option value="WAIT_FOR_PULLBACK_OR_BREAKOUT">منتظر پولبک یا شکست</option><option value="WAIT_FOR_PULLBACK">منتظر پولبک</option><option value="WAIT_FOR_RISK_REWARD">منتظر نسبت ریسک/بازده</option><option value="WAIT_FOR_RISK_DATA">منتظر تعیین حدضرر/هدف</option></optgroup><optgroup label="پایش"><option value="RULE_WATCH">تحت پایش</option><option value="SECONDARY_WATCH">پایش ثانویه</option></optgroup><optgroup label="غیرقابل اقدام"><option value="REJECT">رد شده</option></optgroup></select></div></div>
 <div id="opportunityTable"><div class="empty">برای محاسبه رتبه‌بندی صبر کن.</div></div>
 </section>
+</section>
+
+<section id="page-exit-signals" class="page">
+<section class="opportunity-hero exit-hero"><div><h2>سیگنال‌های خروج سبد</h2><p>فقط قواعد خروج برای دارایی‌های ثبت‌شده در سبد شما نمایش داده می‌شوند. قواعد خرید در این صفحه وارد تصمیم نمی‌شوند.</p></div><button id="reloadExitSignals" class="primary">بررسی مجدد سبد</button></section>
+<div id="exitSignalStatus" class="note"></div>
+<div id="exitSignalStats" class="stats"></div>
+<section class="panel"><div class="panel-head"><div><h2>سیگنال‌های فعال</h2><p class="note">اولویت حدضرر و فروش کامل از سیو سود و کاهش موقعیت بالاتر است. کلیک روی ردیف، پرونده نماد را باز می‌کند.</p></div><span class="tag danger">فقط خروج</span></div><div id="exitSignalTable"><div class="empty">برای بررسی سبد صبر کن.</div></div></section>
 </section>
 
 <section id="page-analysis" class="page">

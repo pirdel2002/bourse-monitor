@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {openDatabase} from '../src/db.js';
-import {buildOpportunityRanking,classifyNextLegEntry,classifyOpportunityState,classifySetup,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
+import {applyPositionPolicy,buildOpportunityRanking,buildOpportunityShortReason,classifyNextLegEntry,classifyOpportunityState,classifySetup,normalizeDecisionReasons,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
 
 const candles=(start=100,count=90)=>Array.from({length:count},(_,index)=>{const close=start+index*.35+(index>84?(index-84)*1.2:0);return{date:`1405-${String(Math.floor(index/28)+1).padStart(2,'0')}-${String(index%28+1).padStart(2,'0')}`,open:close-.5,high:close+1,low:close-1,close,volume:1000+index*12};});
 
@@ -89,7 +89,8 @@ test('Zegoldasht: 79/77 early reversal becomes partial early entry',()=>{
 test('Zghiam: valid price with RR 1.47 waits for risk reward, not pullback',()=>{
   const decision=classifyOpportunityState({...decisionBase,currentPrice:10870,maxBuyPrice:10963,rewardRiskActual:1.47});
   assert.equal(decision.state,'WAIT_FOR_RISK_REWARD');
-  assert.deepEqual(decision.stateReasons,['REWARD_RISK_BELOW_1_5']);
+  assert.deepEqual(decision.stateReasons,['TRIGGER_CONFIRMED']);
+  assert.deepEqual(decision.missingConditions,['REWARD_RISK_BELOW_1_5']);
 });
 
 test('Pipad and Damin: price above max always waits for pullback',()=>{
@@ -103,13 +104,15 @@ test('Pipad and Damin: price above max always waits for pullback',()=>{
 test('early entry above its tighter price limit waits for pullback',()=>{
   const decision=classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,currentPrice:104.5,maxBuyPrice:105,earlyEntryMaxPrice:104});
   assert.equal(decision.state,'WAIT_FOR_PULLBACK');
-  assert.deepEqual(decision.stateReasons,['EARLY_ENTRY_PRICE_ABOVE_LIMIT']);
+  assert.deepEqual(decision.stateReasons,['SETUP_POTENTIAL']);
+  assert.deepEqual(decision.missingConditions,['EARLY_ENTRY_PRICE_ABOVE_LIMIT']);
 });
 
 test('missing stop or target waits for risk data and blocks early entry',()=>{
   const decision=classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,stopAvailable:false,targetAvailable:false});
   assert.equal(decision.state,'WAIT_FOR_RISK_DATA');
-  assert.deepEqual(decision.stateReasons,['STOP_REQUIRED','TARGET_REQUIRED_FOR_BUY_NOW']);
+  assert.deepEqual(decision.stateReasons,['TRIGGER_CONFIRMED']);
+  assert.deepEqual(decision.missingConditions,['STOP_REQUIRED','TARGET_REQUIRED_FOR_BUY_NOW']);
   assert.equal(decision.buyNowEligible,false);
 });
 
@@ -148,9 +151,9 @@ test('D and E: breakout without volume or positive flow cannot buy',()=>{
   const noVolume=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:true});
   const negativeFlow=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutVolumeConfirmed:true,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:false});
   assert.equal(noVolume.state,'WAIT_FOR_BREAKOUT_CONFIRMATION');
-  assert.equal(noVolume.stateReasons.includes('BREAKOUT_VOLUME_CONFIRMATION'),true);
+  assert.equal(noVolume.missingConditions.includes('BREAKOUT_VOLUME_CONFIRMATION'),true);
   assert.equal(negativeFlow.state,'WAIT_FOR_BREAKOUT_CONFIRMATION');
-  assert.equal(negativeFlow.stateReasons.includes('BREAKOUT_FLOW_CONFIRMATION'),true);
+  assert.equal(negativeFlow.missingConditions.includes('BREAKOUT_FLOW_CONFIRMATION'),true);
 });
 
 test('F: price over breakout max fails no-chase and waits for pullback',()=>{
@@ -168,4 +171,31 @@ test('H: a genuine recovery from weakness remains EARLY_REVERSAL',()=>{
   const context={price:98,close:98,ema20:100,ema20_prev1:101,ema50:92,max_gain_40_pct:5,return_20d:-4,high_20:110,high_40_previous_segment:112,recent_correction_pct:10,range_compression_10_ratio:1.1,bbw:.18,bbw_percentile_120:45,macd_hist:-2,macd_hist_prev1:-5,macd_hist_prev2:-9,mfi14:43,mfi14_prev1:35,rsi14:49,rsi14_prev1:42,obv:1200,obv_prev1:1180,obv_high_20:1500,obv_low_20:900};
   const setup=classifySetup(context,{obv_turn_up:true},{structureValid:true,breakoutConfirmed:false,noChaseStatus:'PASS'});
   assert.equal(setup.primarySetupType,'EARLY_REVERSAL');
+});
+
+test('short reasons use actual decision values without inventing evidence',()=>{
+  assert.match(buildOpportunityShortReason({state:'WAIT_FOR_RISK_REWARD',rewardRisk:1.34,missingConditions:['REWARD_RISK_BELOW_1_5']}),/۱٫۳۴.*۱٫۵۰/);
+  assert.match(buildOpportunityShortReason({state:'WAIT_FOR_PULLBACK',currentPrice:7560,maxBuyPrice:7414,noChaseStatus:'FAIL_ABOVE_MAX_BUY',missingConditions:['FAIL_ABOVE_MAX_BUY']}),/۷٬۵۶۰.*۷٬۴۱۴/);
+  const trigger=buildOpportunityShortReason({state:'WAIT_FOR_TRIGGER',missingConditions:['MACD_HISTOGRAM_IMPROVING','VOLUME_CONFIRMATION']});
+  assert.match(trigger,/هیستوگرام MACD/);assert.match(trigger,/حجم/);
+  assert.equal(buildOpportunityShortReason({state:'WAIT_FOR_PULLBACK_OR_BREAKOUT',missingConditions:['PULLBACK_TO_BUY_ZONE','BREAKOUT_ABOVE_RESISTANCE']}),'قیمت بالاتر از محدوده پولبک و هنوز زیر مقاومت است');
+});
+
+test('passed reasons never remain in missing conditions',()=>{
+  const normalized=normalizeDecisionReasons(['PRICE_IN_PULLBACK_ZONE','SUPPORT_HOLDING','FLOW_SAFE'],['FLOW_SAFE','MACD_HISTOGRAM_IMPROVING']);
+  assert.deepEqual(normalized.stateReasons,['PRICE_IN_PULLBACK_ZONE','SUPPORT_HOLDING','FLOW_SAFE']);
+  assert.deepEqual(normalized.missingConditions,['MACD_HISTOGRAM_IMPROVING']);
+});
+
+test('low confirmation pullback cannot receive a full position',()=>{
+  const low=applyPositionPolicy({state:'PULLBACK_ENTRY',positionSizePct:100},70),medium=applyPositionPolicy({state:'PULLBACK_ENTRY',positionSizePct:100},80),full=applyPositionPolicy({state:'PULLBACK_ENTRY',positionSizePct:50},85);
+  assert.equal(low.positionSizePct,50);assert.equal(low.suggestedAction,'BUY_PARTIAL');
+  assert.equal(medium.positionSizePct,75);assert.equal(full.positionSizePct,100);assert.equal(full.suggestedAction,'BUY');
+});
+
+test('pullback entry output keeps pass reasons out of missing conditions',()=>{
+  const item=scenario('ولپارس',{max_gain_40_pct:18,recent_correction_pct:4,range_compression_10_ratio:.6,high_40_previous_segment:10000,price:10300,close:10300,ema20:10300,low:10250,high_20:11500,mfi14:55,mfi14_prev1:50});
+  const overlap=item.stateReasons.filter(code=>item.missingConditions.includes(code));
+  assert.deepEqual(overlap,[]);
+  if(item.state==='PULLBACK_ENTRY'&&item.confirmationScoreActual<75)assert.notEqual(item.positionSizePct,100);
 });
