@@ -135,7 +135,7 @@ export class RuleEngineV2{
     if(this.running)return {skipped:true};this.running=true;
     try{
       const rules=this.db.dueRulesV2().filter(rule=>Boolean(rule.actionParams?.finalCloseOnly)===Boolean(onlyFinalClose));if(!rules.length)return {rules:0,results:[]};
-      const rows=await this.marketData.marketRows({force:forceMarketData}),index=rules.some(rule=>rule.scope==='MARKET')?await this.marketData.marketIndex({force:forceMarketData}):null;
+      const rows=await this.marketData.marketRows({force:forceMarketData}),index=rules.some(rule=>rule.scope==='MARKET')&&typeof this.marketData.marketIndex==='function'?await this.marketData.marketIndex({force:forceMarketData}):null;
       const bySymbol=new Map(rows.map(x=>[x.symbol,x])),now=new Date(),history=this.db.marketSnapshotHistory();
       const market=addMarketHistory(buildMarketContext(rows,index),history,now);
       const market15m=this.db.marketContextBefore(new Date(now.getTime()-15*60000).toISOString(),new Date(now.getTime()-20*60000).toISOString())||{};
@@ -145,10 +145,11 @@ export class RuleEngineV2{
       for(const rule of rules){
         let context;
         if(rule.scope==='MARKET')context={market,market15m,current:market,previous:this.db.previousMarketContext()||{}};
-        else{if(!contexts.has(rule.symbol))contexts.set(rule.symbol,await this.marketData.ruleContext(rule.symbol,bySymbol.get(rule.symbol),market));context=contexts.get(rule.symbol);}
+        else{const contextKey=`${rule.user_id??'global'}:${rule.symbol}`;if(!contexts.has(contextKey))contexts.set(contextKey,await this.marketData.ruleContext(rule.symbol,bySymbol.get(rule.symbol),market,rule.user_id));context=contexts.get(contextKey);}
         const executable=rule.actionParams?.executableOnly===true;
-        const savedCash=executable?this.db.getDataState('account:cash'):null;
-        const reservation=executable?this.db.getDataState('account:reservations'):null;
+        const accountSuffix=rule.user_id==null?'':`:${rule.user_id}`;
+        const savedCash=executable?this.db.getDataState(`account:cash${accountSuffix}`):null;
+        const reservation=executable?this.db.getDataState(`account:reservations${accountSuffix}`):null;
         const reservedToman=reservation&&savedCash&&reservation.cashUpdatedAt===savedCash.updatedAt?Number(reservation.totalToman||0):0;
         const cash=savedCash?{...savedCash,availableToman:Number(savedCash.availableToman)-reservedToman}:null;
         const order=executable?resolveActionableOrder(rule,context,cash):null;
@@ -166,9 +167,9 @@ export class RuleEngineV2{
         const effectiveSeverity=riskOff&&rule.severity==='STRONG_BUY'?'BUY':riskOff&&rule.severity==='BUY'?'WATCH':rule.severity;
         let sent=false;
         if(notify){const message=executable?`${order.text}\n\n${rule.name}\nقیمت تابلو: ${fa(context.current?.price)} ریال\nاین پیام سفارش خودکار نیست.`:this.formatAlert(rule,context,evaluated,effectiveSeverity,riskOff&&buySeverity);
-          const delivery=await sendTelegramMany(this.runtime.telegramTargets(),message);sent=!delivery.skipped;}
+          const targets=rule.visibility==='GLOBAL'?this.runtime.telegramTargetsForUsers(this.db.subscribedUserIds(rule.id)):this.runtime.telegramTargets(rule.user_id),delivery=await sendTelegramMany(targets,message);sent=!delivery.skipped;}
         if(notify&&executable&&!sent)evaluated.state='insufficient';
-        if(sent&&executable&&order.side==='خرید')this.db.setDataState('account:reservations',{
+        if(sent&&executable&&order.side==='خرید')this.db.setDataState(`account:reservations${accountSuffix}`,{
           cashUpdatedAt:savedCash.updatedAt,totalToman:reservedToman+order.amountToman
         });
         this.db.recordRuleResultV2(rule,evaluated,context,sent,notify?tehranDay:null,effectiveSeverity);

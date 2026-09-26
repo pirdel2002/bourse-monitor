@@ -61,6 +61,77 @@ const migrations=[
   `},
   {version:5,sql:`
     UPDATE portfolio_positions SET buy_fee_pct=1.262 WHERE ABS(buy_fee_pct-0.3712)<0.000001;
+  `},
+  {version:6,sql:`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('SENIOR','NORMAL')),
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_login_at TEXT
+    );
+    ALTER TABLE admin_sessions ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE monitors ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE rules_v2 ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE rules_v2 ADD COLUMN visibility TEXT NOT NULL DEFAULT 'PERSONAL' CHECK(visibility IN ('PERSONAL','GLOBAL'));
+    ALTER TABLE rules_v2 ADD COLUMN managed_pack TEXT;
+    CREATE INDEX IF NOT EXISTS idx_monitors_user ON monitors(user_id,status,next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_rules_v2_user ON rules_v2(user_id,visibility,enabled,status);
+    CREATE TABLE IF NOT EXISTS user_portfolio_positions (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      symbol TEXT NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 0,
+      avg_price REAL NOT NULL DEFAULT 0,
+      entry_date TEXT,
+      highest_price_since_entry REAL,
+      stop_price REAL,
+      target_price REAL,
+      updated_at TEXT NOT NULL,
+      initial_stop_price REAL,
+      buy_fee_pct REAL NOT NULL DEFAULT 1.262,
+      PRIMARY KEY(user_id,symbol)
+    );
+    CREATE TABLE IF NOT EXISTS user_strategy_symbol_states (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      strategy_key TEXT NOT NULL,
+      symbol TEXT NOT NULL,
+      state TEXT NOT NULL,
+      buy_enabled INTEGER NOT NULL DEFAULT 1,
+      trigger_rule_id TEXT,
+      last_decision TEXT,
+      last_reason_json TEXT NOT NULL DEFAULT '{}',
+      triggered_at TEXT,
+      confirmed_at TEXT,
+      last_notified_at TEXT,
+      last_notified_day TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,strategy_key,symbol)
+    );
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      setting_key TEXT NOT NULL,
+      value_text TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,setting_key)
+    );
+    CREATE TABLE IF NOT EXISTS global_rule_subscriptions (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      rule_id INTEGER NOT NULL REFERENCES rules_v2(id) ON DELETE CASCADE,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(user_id,rule_id)
+    );
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      requested_at TEXT NOT NULL
+    );
   `}
 ];
 

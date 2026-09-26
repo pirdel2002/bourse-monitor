@@ -25,7 +25,11 @@
 <h1>مرکز پایش بورس</h1>
 <p>برای مدیریت پایش‌ها و هشدارهای شخصی وارد شوید.</p>
 <div class="field">
-<label>رمز عبور مدیر</label>
+<label>نام کاربری</label>
+<input id="loginUsername" autocomplete="username" value="admin">
+</div>
+<div class="field">
+<label>رمز عبور</label>
 <input id="loginPassword" type="password" autocomplete="current-password">
 </div>
 <label class="check-row">
@@ -35,7 +39,8 @@
 </div>
 <div id="resetPanel" class="hidden">
 <h1>بازیابی رمز</h1>
-<p>کد یک‌بارمصرف به ربات اصلی تلگرام ارسال می‌شود.</p>
+<p>کد یک‌بارمصرف به ربات تلگرام همان کاربر ارسال می‌شود.</p>
+<div class="field"><label>نام کاربری</label><input id="resetUsername" autocomplete="username"></div>
 <button id="requestReset" class="secondary full">ارسال کد به تلگرام</button>
 <div class="field">
 <label>کد شش‌رقمی</label>
@@ -82,10 +87,13 @@
 </button>
 <button data-page="settings">⚙ <span>تنظیمات اتصال</span>
 </button>
+<button data-page="users" class="senior-only">♙ <span>مدیریت کاربران</span>
+</button>
 <button data-page="backup">↻ <span>پشتیبان و بازیابی</span>
 </button>
 </nav>
 <div class="side-foot">
+<div id="currentUserLabel" class="note" style="color:#c7d0df;margin-bottom:10px"></div>
 <button id="logoutBtn" class="nav-button danger full">خروج از حساب</button>
 </div>
 </aside>
@@ -262,7 +270,7 @@
 </div>
 </div>
 </section>
-<section class="panel">
+<section class="panel senior-only">
 <h3>کنترل اجرا</h3>
 <p class="note">اجرای دستی نیز از کش استفاده می‌کند. اگر کش منقضی باشد، یک سهمیه AllSymbols مصرف می‌شود.</p>
 <button id="runDue" class="secondary full">اجرای کارهای سررسیدشده</button>
@@ -441,7 +449,7 @@
 </div>
 </section>
 <section id="page-settings" class="page">
-<section class="panel">
+<section class="panel senior-only">
 <div class="panel-head"><div><h2>تاریخچه روزانه نمادها</h2><p class="note">فایل ZIP خروجی رهاورد با قیمت پایانی و تعدیل عملکردی را وارد کن. فقط ۳۰۰ کندل آخر هر نماد ذخیره می‌شود.</p></div><span id="historyStatus" class="tag">بدون سابقه ورود</span></div>
 <div class="form-grid">
 <div class="field span2"><label>ZIP تاریخچه؛ حداکثر ۳۵ مگابایت</label><input id="historyZip" type="file" accept=".zip,application/zip"></div>
@@ -462,6 +470,7 @@
 </div>
 </section>
 <section class="panel">
+<div class="senior-only">
 <div class="panel-head">
 <div>
 <h2>کلیدهای BRSAPI</h2>
@@ -479,10 +488,11 @@
 </div>
 <div id="apiSettings" class="settings-list">
 </div>
+</div>
 <div class="actions" style="margin-top:13px">
 <button id="saveSettings" class="primary">ذخیره تنظیمات اتصال</button>
 <button id="testTelegram" class="secondary">تست تلگرام</button>
-<button id="testBrs" class="secondary">تست BRSAPI</button>
+<button id="testBrs" class="secondary senior-only">تست BRSAPI</button>
 </div>
 </section>
 <section class="panel danger-zone">
@@ -496,6 +506,19 @@
 <button id="changePassword" class="danger">تغییر رمز و خروج از همه نشست‌ها</button>
 </div>
 </div>
+</section>
+</section>
+<section id="page-users" class="page senior-only">
+<section class="panel">
+<div class="panel-head"><div><h2>مدیریت کاربران</h2><p class="note">هر کاربر سبد، پایش‌ها، آرشیو و ربات‌های تلگرام مستقل دارد.</p></div><button id="reloadUsers" class="secondary small">بازخوانی</button></div>
+<div class="form-grid">
+<div class="field"><label>نام کاربری لاتین</label><input id="newUsername" autocomplete="off"></div>
+<div class="field"><label>نام نمایشی</label><input id="newUserDisplayName"></div>
+<div class="field"><label>نقش</label><select id="newUserRole"><option value="NORMAL">کاربر معمولی</option><option value="SENIOR">کاربر ارشد</option></select></div>
+<div class="field"><label>رمز اولیه؛ حداقل ۱۰ نویسه</label><input id="newUserPassword" type="password"></div>
+</div>
+<button id="createUser" class="primary">ساخت کاربر</button>
+<div id="usersList" class="settings-list" style="margin-top:16px"></div>
 </section>
 </section>
 <section id="page-backup" class="page">

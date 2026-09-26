@@ -47,11 +47,11 @@ export class MonitorEngine{
     const candles=await this.candlesFor(symbol,{force:forceHistory}),analysis=buildIndicatorAnalysis(candles,row);return {symbol:row,analysis,historySource:candles.length?'کش محلی کندل تعدیل‌شده':'فاقد تاریخچه'};
   }
 
-  async ruleContext(symbol,row,market){
+  async ruleContext(symbol,row,market,userId=null){
     if(!row)return {current:{},previous:{},liveHistory:[],portfolio:null,market};
     let candles=this.db.candles(symbol,this.config.candleCount||120),historyError=null;try{candles=await this.candlesFor(symbol);}catch(error){historyError=error.message;}const live=makeLiveCandle(row);if(live.date&&live.close>0)this.db.upsertCandles(symbol,[live],'all-symbols-live',1);const analysis=buildIndicatorAnalysis(candles,row);if(historyError&&!analysis.valid)analysis.reason=`${analysis.reason||'داده تاریخی کافی نیست.'} ${historyError}`;const history=this.db.symbolTickHistory(symbol,50),previous=history.at(-1)||{},batchId=`${row.date||'live'}:${row.time||Math.floor(Date.now()/300000)}`;
     const current=analysis.context||{price:row.lastPrice,close:row.closePrice};this.db.addSymbolTick(batchId,symbol,current);
-    let position=this.db.portfolioPosition(symbol);if(position&&position.quantity>0&&position.avg_price>0){this.db.updatePortfolioHigh(symbol,Math.max(Number(current.price||0),Number(current.high||0)));position=this.db.portfolioPosition(symbol);position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;}
+    let position=this.db.portfolioPosition(symbol,userId);if(position&&position.quantity>0&&position.avg_price>0){this.db.updatePortfolioHigh(symbol,Math.max(Number(current.price||0),Number(current.high||0)),userId);position=this.db.portfolioPosition(symbol,userId);position.profit_pct=(Number(current.price)/Number(position.avg_price)-1)*100;}
     return {current,previous,liveHistory:history,portfolio:position,market,marketRow:row,analysis};
   }
 
@@ -77,7 +77,7 @@ export class MonitorEngine{
       const result={state:'insufficient',description:`وضعیت داده یا نماد معتبر نیست: ${row.state||'قیمت نامعتبر'}`};
       this.db.addEvent(monitor.id,'insufficient',result,row,false);const schedule=this.nextSchedule(monitor);this.db.updateAfterRun(monitor.id,{state:'insufficient',...schedule});return {monitorId:monitor.id,symbol:monitor.symbol,state:'insufficient',result,telegramSent:false};
     }
-    const position=this.db.portfolioPosition(monitor.symbol);
+    const position=this.db.portfolioPosition(monitor.symbol,monitor.user_id);
     if(sellMonitorActions.has(monitor.actionType)&&!(Number(position?.quantity)>0&&Number(position?.avg_price)>0)){
       const result={state:'insufficient',description:'این نماد در سبد فعال تعریف نشده است؛ هشدار فروش ارسال نمی‌شود.'};
       this.db.addEvent(monitor.id,'insufficient',result,row,false);const schedule=this.nextSchedule(monitor);this.db.updateAfterRun(monitor.id,{state:'insufficient',...schedule});return {monitorId:monitor.id,symbol:monitor.symbol,state:'insufficient',result,telegramSent:false};
@@ -88,7 +88,7 @@ export class MonitorEngine{
     const result=evaluateExpression(monitor.expression,{...row,observedAt},history);
     let notified=false;
     if(this.shouldNotify(monitor,result)){
-      const targets=this.runtime?.telegramTargets?.()||[this.config.telegram];
+      const targets=this.runtime?.telegramTargets?.(monitor.user_id)||[this.config.telegram];
       const sent=await sendMonitorAlertMany(targets,monitor,row,result);
       notified=!sent.skipped;
     }

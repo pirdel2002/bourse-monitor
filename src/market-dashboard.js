@@ -61,11 +61,11 @@ function categories(items,scope){
   ].filter(report=>scope==='portfolio'||!['second_tranche','portfolio_risk'].includes(report.key));
 }
 
-export function buildMarketDashboard(db,rows,{scope='market'}={}){
-  const positions=db.portfolioPositions(),positionsBySymbol=new Map(positions.map(position=>[position.symbol,position])),liveBySymbol=new Map(rows.map(row=>[row.symbol,row]));
+export function buildMarketDashboard(db,rows,{scope='market',userId=null}={}){
+  const positions=db.portfolioPositions(userId),positionsBySymbol=new Map(positions.map(position=>[position.symbol,position])),liveBySymbol=new Map(rows.map(row=>[row.symbol,row]));
   let universe;
   if(scope==='portfolio'){
-    const overviewBySymbol=new Map(db.portfolioOverview().positions.map(position=>[position.symbol,position]));
+    const overviewBySymbol=new Map(db.portfolioOverview(userId).positions.map(position=>[position.symbol,position]));
     universe=positions.map(position=>{const live=liveBySymbol.get(position.symbol);if(live)return live;const detail=db.symbolDetail(position.symbol)||{symbol:position.symbol,name:position.symbol},history=db.candles(position.symbol,2),latest=history.at(-1),previous=history.at(-2),overview=overviewBySymbol.get(position.symbol),price=n(overview?.current_price)||n(latest?.close)||n(detail.lastPrice)||n(detail.closePrice);return{...detail,lastPrice:price,closePrice:price,date:overview?.price_date||latest?.date||detail.date||'',volume:n(latest?.volume)||0,changePct:latest&&previous&&Number(previous.close)>0?(Number(latest.close)/Number(previous.close)-1)*100:null,hasBuyerPowerData:false,hasOrderBookData:false,buyerPower:null,buyQueueValue:0,sellQueueValue:0};});
   }
   else universe=rows.filter(isMarketShare);
