@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {openDatabase} from '../src/db.js';
-import {buildOpportunityRanking,classifyOpportunityState,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
+import {buildOpportunityRanking,classifyNextLegEntry,classifyOpportunityState,classifySetup,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
 
 const candles=(start=100,count=90)=>Array.from({length:count},(_,index)=>{const close=start+index*.35+(index>84?(index-84)*1.2:0);return{date:`1405-${String(Math.floor(index/28)+1).padStart(2,'0')}-${String(index%28+1).padStart(2,'0')}`,open:close-.5,high:close+1,low:close-1,close,volume:1000+index*12};});
 
@@ -48,7 +48,7 @@ test('Pipad: good trend and RSI cannot hide bearish MACD plus MFI below 40',()=>
 });
 
 test('Zegoldasht: improving negative histogram can produce an early entry',()=>{
-  const item=scenario('زگلدشت');
+  const item=scenario('زگلدشت',{recent_correction_pct:6,mfi14_prev1:38});
   assert.equal(item.trigger.type,'EARLY_REVERSAL_ENTRY');
   assert.equal(['EARLY_ENTRY','BUY_CANDIDATE'].includes(item.state),true);
   assert.equal(item.confirmationScore<=85,true);
@@ -69,7 +69,7 @@ test('Damin: price above max buy blocks candidate and requests pullback',()=>{
 });
 
 test('Dedana: healthy early recovery is not rejected before MACD cross',()=>{
-  const item=scenario('ددانا',{macd_line:90,macd_signal:130,macd_hist:-40,macd_hist_prev1:-90,macd_hist_prev2:-160});
+  const item=scenario('ددانا',{macd_line:90,macd_signal:130,macd_hist:-40,macd_hist_prev1:-90,macd_hist_prev2:-160,recent_correction_pct:7,mfi14_prev1:37});
   assert.equal(item.trigger.type,'EARLY_REVERSAL_ENTRY');
   assert.notEqual(item.state,'REJECT');
   assert.equal(item.reasons.includes('EARLY_REVERSAL_CONFIRMED'),true);
@@ -116,4 +116,56 @@ test('missing stop or target waits for risk data and blocks early entry',()=>{
 test('risk reward boundary uses unrounded values',()=>{
   assert.equal(classifyOpportunityState({...decisionBase,rewardRiskActual:1.496}).state,'WAIT_FOR_RISK_REWARD');
   assert.equal(classifyOpportunityState({...decisionBase,rewardRiskActual:1.5}).state,'BUY_CANDIDATE');
+});
+
+const nextLegBase={currentPrice:7530,resistance:7650,pullbackBuyLow:7300,pullbackBuyHigh:7400,pullbackMaxBuyPrice:7475,breakoutMaxPrice:7803,structureValid:true,flowSafe:true,obvSafe:true,mfiReady:true,priceHoldingSupport:true,breakoutVolumeConfirmed:false,breakoutBuyerPowerConfirmed:false,breakoutMoneyFlowConfirmed:false,breakoutMomentumConfirmed:true,pullbackRiskPct:6,pullbackRewardRisk:1.8,breakoutRiskPct:5,breakoutRewardRisk:1.8,pullbackStopAvailable:true,pullbackTargetAvailable:true,breakoutStopAvailable:true,breakoutTargetAvailable:true};
+
+test('Sbag classifies a strong consolidation after impulse as NEXT_LEG_SETUP',()=>{
+  const context={price:7530,close:7530,ema20:7328,ema20_prev1:7300,ema50:6716,max_gain_40_pct:18,return_20d:10,high_20:7700,high_40_previous_segment:6900,recent_correction_pct:3,range_compression_10_ratio:.65,bbw:.1,bbw_percentile_120:15,atr14:279,atr14_prev:285,macd_hist:-93,macd_hist_prev1:-120,macd_hist_prev2:-150,mfi14:52.84,mfi14_prev1:49,obv:346400000,obv_prev1:344000000,obv_high_20:350000000,obv_low_20:250000000};
+  const setup=classifySetup(context,{obv_turn_up:true},{structureValid:true,breakoutConfirmed:false,noChaseStatus:'PASS'});
+  assert.equal(setup.primarySetupType,'NEXT_LEG_SETUP');
+  assert.equal(setup.priorImpulseExists,true);
+  assert.equal(setup.recentConsolidation,true);
+});
+
+test('A: next leg between pullback max and resistance waits for either route',()=>{
+  assert.equal(classifyNextLegEntry(nextLegBase).state,'WAIT_FOR_PULLBACK_OR_BREAKOUT');
+});
+
+test('B: healthy next-leg pullback activates PULLBACK_ENTRY',()=>{
+  const decision=classifyNextLegEntry({...nextLegBase,currentPrice:7350});
+  assert.equal(decision.state,'PULLBACK_ENTRY');
+  assert.equal(decision.entryType,'PULLBACK_ENTRY');
+});
+
+test('C: fully confirmed breakout inside breakout max activates BREAKOUT_ENTRY',()=>{
+  const decision=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutVolumeConfirmed:true,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:true});
+  assert.equal(decision.state,'BREAKOUT_ENTRY');
+  assert.equal(decision.entryType,'BREAKOUT_ENTRY');
+});
+
+test('D and E: breakout without volume or positive flow cannot buy',()=>{
+  const noVolume=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:true});
+  const negativeFlow=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutVolumeConfirmed:true,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:false});
+  assert.equal(noVolume.state,'WAIT_FOR_BREAKOUT_CONFIRMATION');
+  assert.equal(noVolume.stateReasons.includes('BREAKOUT_VOLUME_CONFIRMATION'),true);
+  assert.equal(negativeFlow.state,'WAIT_FOR_BREAKOUT_CONFIRMATION');
+  assert.equal(negativeFlow.stateReasons.includes('BREAKOUT_FLOW_CONFIRMATION'),true);
+});
+
+test('F: price over breakout max fails no-chase and waits for pullback',()=>{
+  const decision=classifyNextLegEntry({...nextLegBase,currentPrice:7900,breakoutVolumeConfirmed:true,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:true});
+  assert.equal(decision.state,'WAIT_FOR_PULLBACK');
+  assert.equal(decision.noChaseStatus,'FAIL_ABOVE_BREAKOUT_MAX');
+});
+
+test('G: valid breakout with RR below 1.5 waits for risk reward',()=>{
+  const decision=classifyNextLegEntry({...nextLegBase,currentPrice:7700,breakoutVolumeConfirmed:true,breakoutBuyerPowerConfirmed:true,breakoutMoneyFlowConfirmed:true,breakoutRewardRisk:1.49});
+  assert.equal(decision.state,'WAIT_FOR_RISK_REWARD');
+});
+
+test('H: a genuine recovery from weakness remains EARLY_REVERSAL',()=>{
+  const context={price:98,close:98,ema20:100,ema20_prev1:101,ema50:92,max_gain_40_pct:5,return_20d:-4,high_20:110,high_40_previous_segment:112,recent_correction_pct:10,range_compression_10_ratio:1.1,bbw:.18,bbw_percentile_120:45,macd_hist:-2,macd_hist_prev1:-5,macd_hist_prev2:-9,mfi14:43,mfi14_prev1:35,rsi14:49,rsi14_prev1:42,obv:1200,obv_prev1:1180,obv_high_20:1500,obv_low_20:900};
+  const setup=classifySetup(context,{obv_turn_up:true},{structureValid:true,breakoutConfirmed:false,noChaseStatus:'PASS'});
+  assert.equal(setup.primarySetupType,'EARLY_REVERSAL');
 });
