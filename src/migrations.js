@@ -55,6 +55,9 @@ const migrations=[
       PRIMARY KEY(strategy_key,symbol)
     );
     CREATE INDEX IF NOT EXISTS idx_strategy_symbol_states_state ON strategy_symbol_states(strategy_key,state,updated_at);
+  `},
+  {version:4,sql:`
+    ALTER TABLE portfolio_positions ADD COLUMN buy_fee_pct REAL NOT NULL DEFAULT 0.3712;
   `}
 ];
 

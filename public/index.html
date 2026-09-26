@@ -305,12 +305,19 @@
 </section>
 </section>
 <section id="page-portfolio" class="page">
+<div class="stats" id="portfolioStats">
+<div class="stat" style="--tint:#e9e6ff"><span class="label">تعداد نمادهای سبد</span><div id="portfolioSymbolCount" class="num">۰</div></div>
+<div class="stat" style="--tint:#e2efff"><span class="label">ارزش فعلی سبد</span><div id="portfolioCurrentValue" class="num">—</div><small>ریال</small></div>
+<div class="stat" style="--tint:#fff0d9"><span class="label">هزینه خرید با کارمزد</span><div id="portfolioTotalCost" class="num">—</div><small>ریال</small></div>
+<div id="portfolioProfitCard" class="stat" style="--tint:#dff5ee"><span class="label">سود/زیان کل</span><div id="portfolioTotalProfit" class="num">—</div><small id="portfolioProfitPct">—</small></div>
+</div>
 <section class="panel">
 <div class="panel-head"><div><h2>سبد من</h2><p class="note">هشدارهای فروش فقط برای نمادهایی صادر می‌شوند که با تعداد و میانگین خرید معتبر در این بخش ثبت شده‌اند.</p></div><button id="reloadPortfolio" class="secondary small">بازخوانی</button></div>
 <div class="form-grid">
 <div class="field symbol-wrap"><label>نماد</label><input id="portfolioSymbol" class="symbol-ajax" autocomplete="off" placeholder="نماد یا نام شرکت را جست‌وجو کن"></div>
-<div class="field"><label>تعداد سهم</label><input id="portfolioQuantity" type="number" min="1" step="1" placeholder="مثلاً ۶۴۹۳"></div>
-<div class="field"><label>میانگین خرید (ریال)</label><input id="portfolioAvgPrice" type="number" min="1" step="1" placeholder="مثلاً ۱۵۴۰۰"></div>
+<div class="field"><label>تعداد سهم</label><input id="portfolioQuantity" type="text" inputmode="numeric" data-number-input="integer" placeholder="مثلاً ۶٬۴۹۳"></div>
+<div class="field"><label>میانگین خرید (ریال)</label><input id="portfolioAvgPrice" type="text" inputmode="numeric" data-number-input="integer" placeholder="مثلاً ۱۵٬۴۰۰"></div>
+<div class="field"><label>کارمزد خرید (درصد)</label><input id="portfolioBuyFee" type="text" inputmode="decimal" data-number-input="decimal" value="۰٫۳۷۱۲"><small class="note">برای صندوق‌ها در صورت نیاز اصلاح کن.</small></div>
 <div class="field"><label>&nbsp;</label><div class="actions"><button id="savePortfolio" class="primary">ذخیره در سبد</button><button id="cancelPortfolioEdit" class="secondary hidden">لغو ویرایش</button></div></div>
 </div>
 </section>
