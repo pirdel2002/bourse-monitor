@@ -71,6 +71,8 @@
 </button>
 <button data-page="analysis">⌁ <span>تحلیل اندیکاتورها</span>
 </button>
+<button data-page="opportunities">↗ <span>سیگنال خرید</span>
+</button>
 <button data-page="market-overview">▦ <span>گزارش برترین‌های بازار</span>
 </button>
 <button data-page="monitors">◉ <span>پایش‌های فعال</span>
@@ -291,6 +293,23 @@
 <div id="marketReportTabs" class="report-tabs"></div>
 </section>
 <section id="marketReportContent" class="panel"><div class="empty">برای ساخت گزارش صبر کن.</div></section>
+</section>
+
+<section id="page-opportunities" class="page">
+<section class="opportunity-hero">
+<div><h2>سیگنال خرید و رتبه‌بندی فرصت‌ها</h2><p>۱۰۰ نماد اول بر اساس Opportunity Score و Confirmation Score. امتیاز بالا تضمین سود نیست و بدون Trigger، ساختار معتبر و نسبت ریسک/بازده مناسب به معنی خرید فوری نیست.</p></div>
+<div class="actions"><button id="downloadOpportunityCsv" class="secondary">دانلود CSV برای Excel</button><button id="reloadOpportunities" class="primary">محاسبه مجدد</button></div>
+</section>
+<div id="opportunityStatus" class="note"></div>
+<div id="opportunityStats" class="stats"></div>
+<section class="panel opportunity-guide">
+<div class="panel-head"><div><h2>مدل امتیازدهی</h2><p class="note">داده مفقود صفر نمی‌گیرد؛ امتیاز هر بخش بر وزن داده‌های موجود نرمال می‌شود و درصد پوشش داده جداگانه نمایش داده می‌شود.</p></div><span class="tag">Opportunity v1</span></div>
+<div class="score-weight-grid"><span>روند <b>۱۵</b></span><span>مومنتوم <b>۲۰</b></span><span>پول و حجم <b>۲۵</b></span><span>ساختار <b>۱۵</b></span><span>نوسان <b>۱۰</b></span><span>بنیادی <b>۱۰</b></span><span>ریسک/بازده <b>۵</b></span></div>
+</section>
+<section class="panel">
+<div class="panel-head"><div><h2>جدول ۱۰۰ فرصت اول</h2><p class="note">روی نام نماد بزن تا تحلیل اندیکاتورها باز شود. دکمه جزئیات، شروط قابل افزودن به هشدارهای شخصی را نشان می‌دهد.</p></div><div class="field opportunity-filter"><label>فیلتر وضعیت</label><select id="opportunityStateFilter"><option value="">همه وضعیت‌ها</option><option value="BUY_CANDIDATE">کاندید خرید</option><option value="SECOND_ENTRY_CANDIDATE">پله دوم سبد</option><option value="WAIT_FOR_TRIGGER">منتظر Trigger</option><option value="WATCH">زیرنظر</option><option value="NO_ACTION">بدون اقدام</option></select></div></div>
+<div id="opportunityTable"><div class="empty">برای محاسبه رتبه‌بندی صبر کن.</div></div>
+</section>
 </section>
 
 <section id="page-analysis" class="page">

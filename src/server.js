@@ -16,6 +16,7 @@ import {isMarketWindow,marketClock} from './schedule.js';
 import {importRahavardZip,saveHistoryMappings} from './history-import.js';
 import {LEGACY_STRATEGY_KEY,StrategyDecisionEngine} from './strategy-decision-engine.js';
 import {buildMarketDashboard} from './market-dashboard.js';
+import {buildOpportunityRanking} from './opportunity-scoring.js';
 
 loadDotEnv();
 const config=getConfig(),db=openDatabase(config.dbPath),vault=new SecretVault(process.env.APP_ENCRYPTION_KEY||config.adminToken),auth=new AuthService(db,config.adminToken),runtime=new RuntimeSettings(db,vault,config),quota=new ApiQuota(db,config.quota),engine=new MonitorEngine(config,db,quota,runtime),ruleEngine=new RuleEngineV2(config,db,engine,runtime),strategyEngine=new StrategyDecisionEngine(config,db,engine,runtime);
@@ -87,6 +88,7 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/symbols/detail'&&req.method==='GET')return json(res,200,{symbol:db.symbolDetail(url.searchParams.get('symbol')||'')});
     if(url.pathname==='/api/symbols/analysis'&&req.method==='GET'){const symbol=String(url.searchParams.get('symbol')||'').trim();if(!symbol)throw new Error('نماد را انتخاب کنید.');return json(res,200,await engine.analyzeSymbol(symbol,{forceHistory:senior&&url.searchParams.get('refresh')==='1'}));}
     if(url.pathname==='/api/market-dashboard'&&req.method==='GET'){const scope=url.searchParams.get('scope')==='portfolio'?'portfolio':'market';let rows,stale=false,dataError=null;try{rows=await engine.marketRows();}catch(error){rows=db.allSymbolDetails();stale=true;dataError=error.message;}return json(res,200,{...buildMarketDashboard(db,rows,{scope,userId:currentUser.id}),source:stale?'catalog-cache':'all-symbols-cache',stale,dataError});}
+    if(url.pathname==='/api/opportunities'&&req.method==='GET'){let rows,stale=false,dataError=null;try{rows=await engine.marketRows();}catch(error){rows=db.allSymbolDetails();stale=true;dataError=error.message;}return json(res,200,{...buildOpportunityRanking(db,rows,{userId:currentUser.id,limit:100}),source:stale?'catalog-cache':'all-symbols-cache',stale,dataError,snapshot:{date:rows[0]?.date||null,time:rows[0]?.time||null}});}
     if(url.pathname==='/api/symbols/refresh'&&req.method==='POST'){requireSenior();return json(res,200,await engine.refreshCatalog(false));}
     if(url.pathname==='/api/monitors'&&req.method==='GET')return json(res,200,{monitors:db.listMonitors({symbol:url.searchParams.get('symbol')||'',archive:url.searchParams.get('archive')==='1',userId:currentUser.id})});
     if(url.pathname==='/api/monitors'&&req.method==='POST')return json(res,201,{monitor:db.createMonitor(validateMonitor(await readBody(req)),currentUser.id)});
