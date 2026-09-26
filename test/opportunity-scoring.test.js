@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {openDatabase} from '../src/db.js';
-import {buildOpportunityRanking,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
+import {buildOpportunityRanking,classifyOpportunityState,scoreOpportunityAnalysis,scoreSymbol} from '../src/opportunity-scoring.js';
 
 const candles=(start=100,count=90)=>Array.from({length:count},(_,index)=>{const close=start+index*.35+(index>84?(index-84)*1.2:0);return{date:`1405-${String(Math.floor(index/28)+1).padStart(2,'0')}-${String(index%28+1).padStart(2,'0')}`,open:close-.5,high:close+1,low:close-1,close,volume:1000+index*12};});
 
@@ -73,4 +73,47 @@ test('Dedana: healthy early recovery is not rejected before MACD cross',()=>{
   assert.equal(item.trigger.type,'EARLY_REVERSAL_ENTRY');
   assert.notEqual(item.state,'REJECT');
   assert.equal(item.reasons.includes('EARLY_REVERSAL_CONFIRMED'),true);
+});
+
+const decisionBase={opportunityScoreActual:82,confirmationScoreActual:82,triggerPass:true,earlyReversalConfirmed:false,breakoutConfirmed:false,noChaseStatus:'PASS',structureValid:true,flowSafe:true,currentPrice:100,maxBuyPrice:105,earlyEntryMaxPrice:null,riskPctActual:6,rewardRiskActual:1.8,stopAvailable:true,targetAvailable:true,coverageSufficient:true,position:false,executionReady:false,earlyEntryPositionPct:50};
+
+test('Zegoldasht: 79/77 early reversal becomes partial early entry',()=>{
+  const decision=classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,earlyEntryMaxPrice:104});
+  assert.equal(decision.state,'EARLY_ENTRY');
+  assert.equal(decision.action,'BUY_PARTIAL');
+  assert.equal(decision.positionSizePct,50);
+  assert.deepEqual(decision.stateReasons,['EARLY_REVERSAL_CONFIRMED','PRICE_IN_BUY_ZONE','FLOW_SAFE','NO_CHASE_PASS']);
+  assert.equal(classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,earlyEntryMaxPrice:104,earlyEntryPositionPct:35}).positionSizePct,35);
+});
+
+test('Zghiam: valid price with RR 1.47 waits for risk reward, not pullback',()=>{
+  const decision=classifyOpportunityState({...decisionBase,currentPrice:10870,maxBuyPrice:10963,rewardRiskActual:1.47});
+  assert.equal(decision.state,'WAIT_FOR_RISK_REWARD');
+  assert.deepEqual(decision.stateReasons,['REWARD_RISK_BELOW_1_5']);
+});
+
+test('Pipad and Damin: price above max always waits for pullback',()=>{
+  for(const symbol of ['پی‌پاد','دامین']){
+    const decision=classifyOpportunityState({...decisionBase,currentPrice:110,maxBuyPrice:105});
+    assert.equal(decision.state,'WAIT_FOR_PULLBACK',symbol);
+    assert.equal(decision.buyNowEligible,false,symbol);
+  }
+});
+
+test('early entry above its tighter price limit waits for pullback',()=>{
+  const decision=classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,currentPrice:104.5,maxBuyPrice:105,earlyEntryMaxPrice:104});
+  assert.equal(decision.state,'WAIT_FOR_PULLBACK');
+  assert.deepEqual(decision.stateReasons,['EARLY_ENTRY_PRICE_ABOVE_LIMIT']);
+});
+
+test('missing stop or target waits for risk data and blocks early entry',()=>{
+  const decision=classifyOpportunityState({...decisionBase,opportunityScoreActual:79,confirmationScoreActual:77,earlyReversalConfirmed:true,stopAvailable:false,targetAvailable:false});
+  assert.equal(decision.state,'WAIT_FOR_RISK_DATA');
+  assert.deepEqual(decision.stateReasons,['STOP_REQUIRED','TARGET_REQUIRED_FOR_BUY_NOW']);
+  assert.equal(decision.buyNowEligible,false);
+});
+
+test('risk reward boundary uses unrounded values',()=>{
+  assert.equal(classifyOpportunityState({...decisionBase,rewardRiskActual:1.496}).state,'WAIT_FOR_RISK_REWARD');
+  assert.equal(classifyOpportunityState({...decisionBase,rewardRiskActual:1.5}).state,'BUY_CANDIDATE');
 });
