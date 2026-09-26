@@ -66,6 +66,8 @@
 </button>
 <button data-page="analysis">⌁ <span>تحلیل اندیکاتورها</span>
 </button>
+<button data-page="market-overview">▦ <span>گزارش برترین‌های بازار</span>
+</button>
 <button data-page="monitors">◉ <span>پایش‌های فعال</span>
 </button>
 <button data-page="portfolio">▤ <span>سبد من</span>
@@ -267,6 +269,20 @@
 </section>
 </aside>
 </div>
+</section>
+
+<section id="page-market-overview" class="page">
+<section class="market-dashboard-hero">
+<div><h2>گزارش برترین‌های بازار</h2><p class="note">هر گزارش حداکثر ۱۰ نماد را از یک Snapshot مشترک رتبه‌بندی می‌کند. این صفحه سفارش معاملاتی صادر نمی‌کند.</p></div>
+<div class="actions"><div class="scope-switch"><button class="secondary active" data-market-scope="market">کل بازار</button><button class="secondary" data-market-scope="portfolio">سبد من</button></div><button id="reloadMarketDashboard" class="primary">به‌روزرسانی گزارش</button></div>
+</section>
+<div id="marketDashboardStatus" class="note"></div>
+<div id="marketDashboardStats" class="stats"></div>
+<section class="panel">
+<div class="panel-head"><div><h2>گزارش‌ها</h2><p class="note">یک گزارش را انتخاب کن؛ ردیف هر نماد به پرونده همان نماد متصل است.</p></div><span id="marketDashboardScopeLabel" class="tag active">کل بازار</span></div>
+<div id="marketReportTabs" class="report-tabs"></div>
+</section>
+<section id="marketReportContent" class="panel"><div class="empty">برای ساخت گزارش صبر کن.</div></section>
 </section>
 
 <section id="page-analysis" class="page">

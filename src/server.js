@@ -15,6 +15,7 @@ import {RuleEngineV2,conditionCatalogV2,conditionDefinitionsV2,normalizeRuleExpr
 import {isMarketWindow,marketClock} from './schedule.js';
 import {importRahavardZip,saveHistoryMappings} from './history-import.js';
 import {LEGACY_STRATEGY_KEY,StrategyDecisionEngine} from './strategy-decision-engine.js';
+import {buildMarketDashboard} from './market-dashboard.js';
 
 loadDotEnv();
 const config=getConfig(),db=openDatabase(config.dbPath),vault=new SecretVault(process.env.APP_ENCRYPTION_KEY||config.adminToken),runtime=new RuntimeSettings(db,vault,config),auth=new AuthService(db,config.adminToken),quota=new ApiQuota(db,config.quota),engine=new MonitorEngine(config,db,quota,runtime),ruleEngine=new RuleEngineV2(config,db,engine,runtime),strategyEngine=new StrategyDecisionEngine(config,db,engine,runtime);
@@ -81,6 +82,7 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname==='/api/symbols'&&req.method==='GET')return json(res,200,{symbols:db.searchSymbols(url.searchParams.get('q')||'',30)});
     if(url.pathname==='/api/symbols/detail'&&req.method==='GET')return json(res,200,{symbol:db.symbolDetail(url.searchParams.get('symbol')||'')});
     if(url.pathname==='/api/symbols/analysis'&&req.method==='GET'){const symbol=String(url.searchParams.get('symbol')||'').trim();if(!symbol)throw new Error('نماد را انتخاب کنید.');return json(res,200,await engine.analyzeSymbol(symbol,{forceHistory:url.searchParams.get('refresh')==='1'}));}
+    if(url.pathname==='/api/market-dashboard'&&req.method==='GET'){const scope=url.searchParams.get('scope')==='portfolio'?'portfolio':'market';let rows,stale=false,dataError=null;try{rows=await engine.marketRows();}catch(error){rows=db.allSymbolDetails();stale=true;dataError=error.message;}return json(res,200,{...buildMarketDashboard(db,rows,{scope}),source:stale?'catalog-cache':'all-symbols-cache',stale,dataError});}
     if(url.pathname==='/api/symbols/refresh'&&req.method==='POST')return json(res,200,await engine.refreshCatalog(false));
     if(url.pathname==='/api/monitors'&&req.method==='GET')return json(res,200,{monitors:db.listMonitors({symbol:url.searchParams.get('symbol')||'',archive:url.searchParams.get('archive')==='1'})});
     if(url.pathname==='/api/monitors'&&req.method==='POST')return json(res,201,{monitor:db.createMonitor(validateMonitor(await readBody(req)))});

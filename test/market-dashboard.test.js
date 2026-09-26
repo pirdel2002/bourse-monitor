@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {openDatabase} from '../src/db.js';
+import {buildMarketDashboard} from '../src/market-dashboard.js';
+
+const candles=(start=100,count=70)=>Array.from({length:count},(_,index)=>{const close=start+index*.8+(index>64?(index-64)*2:0);return{date:`1405-06-${String(index+1).padStart(2,'0')}`,open:close-1,high:close+2,low:close-2,close,volume:1000+index*10};});
+
+test('builds market and portfolio dashboards without external calls',()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'market-dashboard-')),db=openDatabase(path.join(dir,'x.db'));for(const symbol of ['الف','ب'])db.upsertCandles(symbol,candles(symbol==='الف'?100:200), 'test',1);const rows=[{symbol:'الف',name:'الف',lastPrice:180,closePrice:180,changePct:3,volume:5000,tradeValue:900000,buyVolumeReal:4000,buyCountReal:10,sellVolumeReal:1000,sellCountReal:10,buyerPower:4,hasBuyerPowerData:true,buyQueueValue:100000,sellQueueValue:0,pe:4,groupPe:8,eps:20,date:'1405-07-01',time:'10:00'},{symbol:'ب',name:'ب',lastPrice:240,closePrice:240,changePct:-2,volume:900,tradeValue:300000,buyVolumeReal:500,buyCountReal:10,sellVolumeReal:2000,sellCountReal:10,buyerPower:.25,hasBuyerPowerData:true,buyQueueValue:0,sellQueueValue:200000,pe:12,groupPe:9,eps:10,date:'1405-07-01',time:'10:00'}];db.savePortfolioPosition({symbol:'الف',quantity:100,avgPrice:150});const market=buildMarketDashboard(db,rows,{scope:'market'}),portfolio=buildMarketDashboard(db,rows,{scope:'portfolio'}),cachedPortfolio=buildMarketDashboard(db,[],{scope:'portfolio'});assert.equal(market.summary.universeCount,2);assert.equal(market.categories.find(x=>x.key==='buy_queue').items[0].symbol,'الف');assert.equal(market.categories.find(x=>x.key==='sell_queue').items[0].symbol,'ب');assert.equal(market.categories.some(x=>x.key==='second_tranche'),false);assert.equal(portfolio.summary.universeCount,1);assert.equal(portfolio.categories.some(x=>x.key==='second_tranche'),true);assert.equal(portfolio.categories.some(x=>x.key==='portfolio_risk'),true);assert.equal(cachedPortfolio.summary.universeCount,1);assert.equal(cachedPortfolio.categories.find(x=>x.key==='volume').items[0].symbol,'الف');db.close();});
