@@ -12,7 +12,7 @@ import {RuntimeSettings} from './runtime-settings.js';
 import {parseBulkMonitors} from './bulk-import.js';
 import {sendTelegramMany} from './telegram.js';
 import {RuleEngineV2,conditionCatalogV2,conditionDefinitionsV2,normalizeRuleExpressionV2,validateRuleExpressionV2} from './rule-engine-v2.js';
-import {isMarketWindow} from './schedule.js';
+import {isMarketWindow,marketClock} from './schedule.js';
 import {importRahavardZip,saveHistoryMappings} from './history-import.js';
 import {LEGACY_STRATEGY_KEY,StrategyDecisionEngine} from './strategy-decision-engine.js';
 
@@ -121,6 +121,10 @@ const server=http.createServer(async(req,res)=>{
 });
 
 server.listen(config.port,()=>console.log(`${config.appName}: http://localhost:${config.port} | timezone Asia/Tehran`));
-const timer=setInterval(()=>{if(!isMarketWindow(config.marketSchedule))return;Promise.allSettled([engine.runDue(),(async()=>{const result=await ruleEngine.run({includeSnapshot:true});await strategyEngine.run({snapshot:result.snapshot});})()]).then(results=>{for(const item of results)if(item.status==='rejected')console.error(item.reason?.message||item.reason);});},config.pollIntervalSeconds*1000);timer.unref();
+const clockMinutes=value=>{const [hour,minute]=String(value).split(':').map(Number);return hour*60+minute;};
+const tehranDay=date=>new Intl.DateTimeFormat('en-CA',{timeZone:config.marketSchedule.timeZone}).format(date);
+const isPostCloseGrace=date=>{const clock=marketClock(date,config.marketSchedule.timeZone),now=clock.hour*60+clock.minute,end=clockMinutes(config.marketSchedule.end);return ['Sat','Sun','Mon','Tue','Wed'].includes(clock.weekday)&&now>end&&now<=end+10;};
+let lastPostCloseDay=null;
+const timer=setInterval(()=>{const now=new Date();if(isMarketWindow(config.marketSchedule,now)){Promise.allSettled([engine.runDue(),(async()=>{const result=await ruleEngine.run({includeSnapshot:true});await strategyEngine.run({snapshot:result.snapshot});})()]).then(results=>{for(const item of results)if(item.status==='rejected')console.error(item.reason?.message||item.reason);});return;}const day=tehranDay(now);if(!isPostCloseGrace(now)||lastPostCloseDay===day)return;ruleEngine.run({onlyFinalClose:true,forceMarketData:true}).then(result=>{if(!result.skipped)lastPostCloseDay=day;}).catch(error=>console.error(error.message||error));},config.pollIntervalSeconds*1000);timer.unref();
 const prune=setInterval(()=>db.prune(config.retentionDays),24*60*60*1000);prune.unref();
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{clearInterval(timer);clearInterval(prune);db.close();server.close(()=>process.exit(0));});

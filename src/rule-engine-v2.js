@@ -131,11 +131,11 @@ function addMarketHistory(context,history,now=new Date()){
 
 export class RuleEngineV2{
   constructor(config,db,marketData,runtime){this.config=config;this.db=db;this.marketData=marketData;this.runtime=runtime;this.running=false;this.lastRunAt=null;this.lastError=null;}
-  async run({includeSnapshot=false}={}){
+  async run({includeSnapshot=false,onlyFinalClose=false,forceMarketData=false}={}){
     if(this.running)return {skipped:true};this.running=true;
     try{
-      const rules=this.db.dueRulesV2();if(!rules.length)return {rules:0,results:[]};
-      const rows=await this.marketData.marketRows(),index=rules.some(rule=>rule.scope==='MARKET')?await this.marketData.marketIndex():null;
+      const rules=this.db.dueRulesV2().filter(rule=>Boolean(rule.actionParams?.finalCloseOnly)===Boolean(onlyFinalClose));if(!rules.length)return {rules:0,results:[]};
+      const rows=await this.marketData.marketRows({force:forceMarketData}),index=rules.some(rule=>rule.scope==='MARKET')?await this.marketData.marketIndex({force:forceMarketData}):null;
       const bySymbol=new Map(rows.map(x=>[x.symbol,x])),now=new Date(),history=this.db.marketSnapshotHistory();
       const market=addMarketHistory(buildMarketContext(rows,index),history,now);
       const market15m=this.db.marketContextBefore(new Date(now.getTime()-15*60000).toISOString(),new Date(now.getTime()-20*60000).toISOString())||{};
