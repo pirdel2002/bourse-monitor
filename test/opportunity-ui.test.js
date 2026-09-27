@@ -58,6 +58,7 @@ test('system monitor switches are separate from manual rule cards',()=>{
 
 test('V2 ranking modes and exit CSV are available',()=>{
   for(const mode of ['ALL_OPPORTUNITIES','EARLY_MOVE','NEXT_LEG','BREAKOUT','PORTFOLIO_SECOND_ENTRY'])assert.match(html,new RegExp(`value="${mode}"`));
-  for(const field of ['OpportunityV1','OpportunityV2','AdjustedOpportunityV2','FreshnessScore','RankChange'])assert.equal(app.includes(`'${field}'`),true,field);
+  for(const field of ['AdjustedOpportunityV2','FreshnessScore','RawExtensionPenalty','NetExtensionPenalty','FlowDivergence'])assert.equal(app.includes(field),true,field);
+  assert.match(html,/value="EARLY_MOVE" selected/);
   assert.match(html,/id="downloadExitCsv"/);assert.match(app,/function downloadExitCsv/);
 });

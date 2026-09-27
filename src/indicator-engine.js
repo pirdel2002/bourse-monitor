@@ -49,6 +49,27 @@ export function makeLiveCandle(row){
   return normalizeCandle({date:row.date||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(new Date()),open:row.openPrice||close,high:row.dayHigh||Math.max(row.openPrice||close,close),low:row.dayLow||Math.min(row.openPrice||close,close),close,volume:row.volume});
 }
 
+export function detectConsolidation(candlesInput,atrInput=[],bbwInput=[]){
+  const candles=(candlesInput||[]).map(normalizeCandle).filter(x=>x.close>0&&x.high>0&&x.low>0);
+  let best={consolidation_bars:0,consolidation_range_pct:null,consolidation_score:0,atr_compression_ratio:null,range_compression_ratio:null,recent_consolidation:false};
+  for(let size=5;size<=Math.min(20,candles.length-5);size++){
+    const recent=candles.slice(-size),previous=candles.slice(-Math.min(candles.length,size*2),-size);
+    if(previous.length<5)continue;
+    const highest=Math.max(...recent.map(x=>x.high)),lowest=Math.min(...recent.map(x=>x.low)),mid=(highest+lowest)/2;
+    const prevHigh=Math.max(...previous.map(x=>x.high)),prevLow=Math.min(...previous.map(x=>x.low)),prevMid=(prevHigh+prevLow)/2;
+    const rangePct=mid>0?(highest-lowest)/mid*100:null,previousRangePct=prevMid>0?(prevHigh-prevLow)/prevMid*100:null,rangeRatio=finite(rangePct)&&finite(previousRangePct)&&previousRangePct>0?rangePct/previousRangePct:null;
+    const recentAtr=atrInput.slice(-size).filter(finite),previousAtr=atrInput.slice(-Math.min(atrInput.length,size*2),-size).filter(finite),atrRatio=recentAtr.length&&previousAtr.length?mean(recentAtr)/mean(previousAtr):null;
+    const recentBbw=bbwInput.slice(-size).filter(finite),previousBbw=bbwInput.slice(-Math.min(bbwInput.length,size*2),-size).filter(finite),bbwRatio=recentBbw.length&&previousBbw.length?mean(recentBbw)/mean(previousBbw):null;
+    const supportPreserved=recent.every((bar,index)=>index===0||bar.low>=lowest*.995),noBreakdown=recent.slice(1).every((bar,index)=>bar.low>=Math.min(...recent.slice(0,index+1).map(x=>x.low))*.97);
+    const score=clampScore((finite(rangeRatio)?Math.max(0,Math.min(30,(1.25-rangeRatio)/.75*30)):0)+(finite(atrRatio)?Math.max(0,Math.min(20,(1.2-atrRatio)/.6*20)):0)+(finite(bbwRatio)?Math.max(0,Math.min(20,(1.2-bbwRatio)/.6*20)):0)+(supportPreserved?15:0)+(noBreakdown?15:0));
+    const qualifies=score>=60&&finite(rangePct)&&rangePct<=5;
+    if(qualifies&&(size>best.consolidation_bars||score>best.consolidation_score+10))best={consolidation_bars:size,consolidation_range_pct:round(rangePct),consolidation_score:round(score),atr_compression_ratio:round(atrRatio),range_compression_ratio:round(rangeRatio),recent_consolidation:true};
+  }
+  return best;
+}
+
+function clampScore(value){return Math.max(0,Math.min(100,value));}
+
 export function buildIndicatorAnalysis(history,liveRow=null){
   let candles=(history||[]).map(normalizeCandle).filter(x=>x.date&&x.close>0&&x.high>0&&x.low>0).sort((a,b)=>a.date.localeCompare(b.date));
   candles=candles.filter((x,index)=>index===candles.length-1||x.date!==candles[index+1]?.date);
@@ -70,13 +91,14 @@ export function buildIndicatorAnalysis(history,liveRow=null){
   const previousSegment=candles.slice(-41,-21),high40PreviousSegment=previousSegment.length?Math.max(...previousSegment.map(x=>x.high)):null;
   const recentRange=candles.slice(-10),previousRange=candles.slice(-20,-10),rangePct=items=>items.length&&last>0?(Math.max(...items.map(x=>x.high))-Math.min(...items.map(x=>x.low)))/last*100:null,range10Pct=rangePct(recentRange),previousRange10Pct=rangePct(previousRange),rangeCompression10=finite(range10Pct)&&finite(previousRange10Pct)&&previousRange10Pct>0?range10Pct/previousRange10Pct:null;
   const high20=priorHigh(20),recentCorrectionPct=finite(high20)&&high20>0?Math.max(0,(high20-last)/high20*100):null;
+  const consolidation=detectConsolidation(candles,atr,bbwSeries);
   const context={
     price:Number(liveRow?.lastPrice||last),close:last,open:candles.at(-1).open,high:candles.at(-1).high,low:candles.at(-1).low,volume:candles.at(-1).volume,value:Number(liveRow?.tradeValue||0),trade_count:Number(liveRow?.tradeCount||0),
     ema20:round(ema20),ema20_prev1:round(ema20Prev),ema50:round(ema50),ema50_prev1:round(ema50Prev),ema20_ema50_gap_pct:round(finite(ema20)&&finite(ema50)&&ema50!==0?Math.abs(ema20-ema50)/ema50*100:null),rsi14:round(rsi14),rsi14_prev1:round(rsiPrev),
     macd_line:round(macd_line),macd_signal:round(macd_signal),macd_hist:round(macd_hist),macd_hist_prev1:round(macd_hist_prev1),macd_hist_prev2:round(macd_hist_prev2),macd_hist_slope:round(finite(macd_hist)&&finite(macd_hist_prev1)?macd_hist-macd_hist_prev1:null),
     mfi14:round(mfi14),mfi14_prev1:round(mfiPrev),obv:round(obvNow,0),obv_prev1:round(lastFinite(obv,1),0),obv_prev2:round(lastFinite(obv,2),0),obv_prev5:round(lastFinite(obv,5),0),obv_high_5:round(high(5),0),obv_high_10:round(high(10),0),obv_high_20:round(high(20),0),obv_low_10:obv.length>10?round(Math.min(...obv.slice(-11,-1)),0):null,obv_low_20:obv.length>20?round(Math.min(...obv.slice(-21,-1)),0):null,
     atr14:round(atr14),atr14_prev:round(atrPrev),atr14_prev2:round(atrPrev2),atr14_sma5:round(atr5),bbw:round(bbw),bbw_prev1:round(bbwPrev),bbw_prev2:round(bbwPrev2),bbw_percentile_120:round(bbwPercentile),volume_sma20:round(volumeSma20,0),volume_ratio_20:round(finite(volumeSma20)&&volumeSma20>0?candles.at(-1).volume/volumeSma20:null),
-    return_5d:round(rollingReturn(5)),return_20d:round(rollingReturn(20)),high_10:round(priorHigh(10)),low_10:round(priorLow(10)),high_20:round(high20),low_20:round(priorLow(20)),high_40:round(priorHigh(40)),low_40:round(priorLow(40)),high_40_previous_segment:round(high40PreviousSegment),max_gain_40_pct:round(maxGain40),recent_correction_pct:round(recentCorrectionPct),range_10_pct:round(range10Pct),previous_range_10_pct:round(previousRange10Pct),range_compression_10_ratio:round(rangeCompression10),close_prev5:candles.length>5?round(candles.at(-6).close):null,
+    return_5d:round(rollingReturn(5)),return_20d:round(rollingReturn(20)),high_10:round(priorHigh(10)),low_10:round(priorLow(10)),high_20:round(high20),low_20:round(priorLow(20)),high_40:round(priorHigh(40)),low_40:round(priorLow(40)),high_40_previous_segment:round(high40PreviousSegment),max_gain_40_pct:round(maxGain40),recent_correction_pct:round(recentCorrectionPct),range_10_pct:round(range10Pct),previous_range_10_pct:round(previousRange10Pct),range_compression_10_ratio:round(rangeCompression10),...consolidation,close_prev5:candles.length>5?round(candles.at(-6).close):null,
     real_buy_volume:Number(liveRow?.buyVolumeReal||0),real_sell_volume:Number(liveRow?.sellVolumeReal||0),real_buy_count:Number(liveRow?.buyCountReal||0),real_sell_count:Number(liveRow?.sellCountReal||0),buyer_power:liveRow?.hasBuyerPowerData===false?null:round(liveRow?.buyerPower),real_money_flow:liveRow?.hasBuyerPowerData===false?null:round((Number(liveRow?.buyVolumeReal||0)-Number(liveRow?.sellVolumeReal||0))*Number(liveRow?.closePrice||liveRow?.lastPrice||0),0)
   };
   const early=[macd_hist,macd_hist_prev1,macd_hist_prev2].every(finite)&&macd_hist<0&&macd_hist>macd_hist_prev1&&macd_hist_prev1>macd_hist_prev2,near=early&&Math.abs(macd_hist)<=.15*Math.max(Math.abs(macd_signal||0),Math.abs(last)*.0001),bull=finite(macd_line)&&finite(macd_signal)&&finite(lastFinite(macdLine,1))&&finite(lastFinite(macdSignal,1))&&macd_line>macd_signal&&lastFinite(macdLine,1)<=lastFinite(macdSignal,1);
