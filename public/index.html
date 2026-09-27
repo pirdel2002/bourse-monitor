@@ -304,15 +304,16 @@
 </section>
 <div id="opportunityStatus" class="note"></div>
 <div id="opportunityStats" class="stats"></div>
-<section class="panel opportunity-guide">
-<div class="panel-head"><div><h2>مدل امتیازدهی</h2><p class="note">Opportunity کیفیت فرصت است؛ Confirmation با سقف‌های مومنتوم، جریان پول و قیمت کنترل می‌شود. داده مفقود صفر نمی‌گیرد، اما شروط ایمنی حذف نمی‌شوند.</p></div><span class="tag">Opportunity v3</span></div>
-<div class="score-weight-grid"><span>روند <b>۱۵</b></span><span>مومنتوم <b>۲۰</b></span><span>پول و حجم <b>۲۵</b></span><span>ساختار <b>۱۵</b></span><span>نوسان <b>۱۰</b></span><span>بنیادی <b>۱۰</b></span><span>ریسک/بازده <b>۵</b></span></div>
-<div class="term-help"><span title="کیفیت کلی فرصت؛ بالا بودن آن به معنی دستور خرید نیست.">Opportunity <b>?</b></span><span title="میزان تأیید حرکت فعلی.">Confirmation <b>?</b></span><span title="نوع ساختار فرصت معاملاتی.">Setup <b>?</b></span><span title="روش مناسب ورود به معامله.">Entry <b>?</b></span><span title="اقدام یا وضعیت فعلی سهم در موتور تصمیم‌گیری.">State <b>?</b></span><span title="کنترل می‌کند سهم را در قیمت بیش از حد بالا تعقیب نکنیم.">No-Chase <b>?</b></span><span title="نسبت بازده بالقوه به ریسک تا حدضرر.">R/R <b>?</b></span><span title="محدودکننده Confirmation بر اساس وضعیت مومنتوم.">MomentumGate <b>?</b></span><span title="محدودکننده Confirmation بر اساس حجم و جریان پول.">FlowGate <b>?</b></span><span title="محدودکننده Confirmation بر اساس مناسب‌بودن قیمت ورود.">PriceGate <b>?</b></span></div>
-</section>
 <section class="panel">
 <div class="panel-head"><div><h2>جدول ۱۰۰ فرصت اول</h2><p class="note">برای مرتب‌سازی روی عنوان هر ستون بزن. نام نماد تحلیل اندیکاتورها را باز می‌کند.</p></div><div class="field opportunity-filter"><label>فیلتر وضعیت</label><select id="opportunityStateFilter"><option value="">همه وضعیت‌ها</option><optgroup label="قابل اقدام"><option value="PULLBACK_ENTRY">ورود روی پولبک</option><option value="EARLY_ENTRY">ورود زودهنگام</option><option value="BREAKOUT_ENTRY">ورود روی شکست</option><option value="SECOND_ENTRY_CANDIDATE">پله دوم سبد</option></optgroup><optgroup label="نزدیک به ورود"><option value="BUY_CANDIDATE">کاندید؛ هنوز بدون ورود</option><option value="WAIT_FOR_TRIGGER">منتظر سیگنال ورود</option><option value="WAIT_FOR_BREAKOUT_CONFIRMATION">منتظر تأیید شکست</option><option value="WAIT_FOR_PULLBACK_OR_BREAKOUT">منتظر پولبک یا شکست</option><option value="WAIT_FOR_PULLBACK">منتظر پولبک</option><option value="WAIT_FOR_RISK_REWARD">منتظر نسبت ریسک/بازده</option><option value="WAIT_FOR_RISK_DATA">منتظر تعیین حدضرر/هدف</option></optgroup><optgroup label="پایش"><option value="RULE_WATCH">تحت پایش</option><option value="SECONDARY_WATCH">پایش ثانویه</option></optgroup><optgroup label="غیرقابل اقدام"><option value="REJECT">رد شده</option></optgroup></select></div></div>
+<div class="term-help" id="opportunityHelp"><button type="button" data-help="کیفیت کلی فرصت؛ بالا بودن آن به معنی دستور خرید نیست.">امتیاز فرصت <b>؟</b></button><button type="button" data-help="میزان تأیید حرکت فعلی.">تأیید حرکت <b>؟</b></button><button type="button" data-help="نوع ساختار فرصت معاملاتی.">ساختار <b>؟</b></button><button type="button" data-help="روش مناسب ورود به معامله.">روش ورود <b>؟</b></button><button type="button" data-help="اقدام یا وضعیت فعلی سهم در موتور تصمیم‌گیری.">وضعیت <b>؟</b></button><button type="button" data-help="کنترل می‌کند سهم را در قیمت بیش از حد بالا تعقیب نکنیم.">تعقیب قیمت <b>؟</b></button><button type="button" data-help="نسبت بازده بالقوه به ریسک تا حدضرر.">بازده/ریسک <b>؟</b></button><button type="button" data-help="محدودکننده تأیید بر اساس وضعیت مومنتوم.">سقف مومنتوم <b>؟</b></button><button type="button" data-help="محدودکننده تأیید بر اساس حجم و جریان پول.">سقف جریان پول <b>؟</b></button><button type="button" data-help="محدودکننده تأیید بر اساس مناسب‌بودن قیمت ورود.">سقف قیمت <b>؟</b></button></div>
+<div id="opportunityHelpText" class="help-popover hidden" role="status"></div>
 <div id="opportunityTable"><div class="empty">برای محاسبه رتبه‌بندی صبر کن.</div></div>
 </section>
+<details class="panel opportunity-guide engine-debug">
+<summary>مدل امتیازدهی و وزن شاخص‌ها</summary>
+<div class="opportunity-guide-content"><p class="note">امتیاز فرصت کیفیت بالقوه را نشان می‌دهد؛ تأیید حرکت با سقف‌های مومنتوم، جریان پول و قیمت کنترل می‌شود. دادهٔ مفقود صفر نمی‌گیرد، اما شروط ایمنی حذف نمی‌شوند.</p><div class="score-weight-grid"><span>روند <b>۱۵</b></span><span>مومنتوم <b>۲۰</b></span><span>پول و حجم <b>۲۵</b></span><span>ساختار <b>۱۵</b></span><span>نوسان <b>۱۰</b></span><span>بنیادی <b>۱۰</b></span><span>ریسک/بازده <b>۵</b></span></div></div>
+</details>
 </section>
 
 <section id="page-exit-signals" class="page">
@@ -334,6 +335,15 @@
 <div id="analysisContent"><div class="empty">برای نمایش تحلیل، یک نماد را انتخاب کن.</div></div>
 </section>
 <section id="page-monitors" class="page">
+<section class="panel system-monitor-panel">
+<div class="panel-head"><div><h2>پایش‌های سیستمی</h2><p class="note">این سه مورد مستقل از قوانین دستی و ورود گروهی هستند و در فهرست Ruleها تکرار نمی‌شوند.</p></div><span class="tag">هر ۶۰ دقیقه در ساعت بازار</span></div>
+<div class="system-monitor-options">
+<label><input id="systemBuySignals" type="checkbox"><span><b>سیگنال‌های خرید</b><small>رتبه‌بندی فرصت‌ها را هر ساعت بررسی می‌کند و فقط با ورود نماد به مرحلهٔ قابل اقدام پیام می‌دهد.</small></span></label>
+<label><input id="systemExitSignals" type="checkbox"><span><b>سیگنال‌های خروج سبد</b><small>سبد شما را هر ساعت بررسی می‌کند و فقط برای فروش، سیو سود یا کاهش موقعیت پیام می‌دهد.</small></span></label>
+<label><input id="systemMarketRules" type="checkbox"><span><b>قوانین عمومی بازار</b><small>هشدارهای ریسک بازار، وسعت بازار، حجم و تغییر صف‌های خرید و فروش را کنترل می‌کند.</small></span></label>
+</div>
+<div id="systemMonitorStatus" class="note"></div>
+</section>
 <section class="panel">
 <div class="actions"><label class="check-row" style="margin:0"><input id="selectAllMonitoring" type="checkbox"> انتخاب همه موارد نمایش‌داده‌شده</label><button id="deleteSelectedMonitoring" class="danger small">حذف انتخاب‌شده‌ها</button><button id="deleteAllMonitoring" class="danger small">حذف همه پایش‌ها و قوانین</button></div>
 <p class="note">«حذف همه» پایش‌های فعال/متوقف و تمام Ruleهای v2 را حذف می‌کند؛ آرشیو پایش‌های پایان‌یافته باقی می‌ماند.</p>

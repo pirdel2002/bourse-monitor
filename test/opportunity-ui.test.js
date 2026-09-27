@@ -10,6 +10,7 @@ test('mobile opportunity ranking uses responsive cards and hides decision extras
   assert.match(css,/\.opportunity-main-row,\.exit-signal-table tbody tr\{display:grid/);
   assert.match(css,/\.opportunity-main-row \.decision-extra\{display:none\}/);
   assert.match(css,/@media\(max-width:760px\)/);
+  assert.match(app,/data-label="پیشنهاد قیمت"/);
 });
 
 test('CSV retains analysis, debug and dual-entry fields after table simplification',()=>{
@@ -33,4 +34,24 @@ test('exit signal page is available to every authenticated user',()=>{
   assert.match(html,/data-page="exit-signals"/);
   assert.match(html,/id="page-exit-signals"/);
   assert.match(app,/api\/exit-signals/);
+});
+
+test('primary opportunity UI is Persian and summary cards apply filters',()=>{
+  assert.match(app,/NEXT_LEG_SETUP:'آماده موج بعدی'/);
+  assert.match(app,/PULLBACK_ENTRY:'ورود روی پولبک'/);
+  assert.match(app,/data-opportunity-quick="actionable"/);
+  assert.match(app,/opportunityQuickFilter=card\.dataset\.opportunityQuick/);
+});
+
+test('score model is below the table, collapsed by default, and help works on click',()=>{
+  assert.ok(html.indexOf('id="opportunityTable"')<html.indexOf('مدل امتیازدهی و وزن شاخص‌ها'));
+  assert.match(html,/<details class="panel opportunity-guide engine-debug">/);
+  assert.match(html,/data-help="کیفیت کلی فرصت/);
+  assert.match(app,/opportunityHelp.*querySelectorAll\('\[data-help\]'\)/);
+});
+
+test('system monitor switches are separate from manual rule cards',()=>{
+  for(const id of ['systemBuySignals','systemExitSignals','systemMarketRules'])assert.match(html,new RegExp(`id="${id}"`));
+  assert.match(app,/api\/system-monitors/);
+  assert.match(app,/items\.filter\(x=>x\.visibility!==\'GLOBAL\'\)/);
 });

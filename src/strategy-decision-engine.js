@@ -61,7 +61,7 @@ function exitDecision(position,context){
   else if(stop.profit>=25&&weaknessMatches>=2){finalDecision='TAKE_PROFIT';exitRule='TAKE_PROFIT_25';}
   else if(stop.profit>=15&&weaknessMatches>=2){finalDecision='TAKE_PROFIT';exitRule='TAKE_PROFIT_15';}
   else if(weaknessMatches>=2){finalDecision='REDUCE_POSITION';exitRule='TECHNICAL_WEAKNESS';}
-  return {symbol:position.symbol,avgEntry:stop.avg,currentPrice:stop.price,profitPct:stop.profit,highestSinceEntry:stop.high,initialStop:stop.initial,currentStop:stop.current,trailingStopStatus:stop.status,weaknessMatchCount:weaknessMatches,weaknessEvidence:weakness.map(conditionSummary),majorSupport:null,exitRule,finalDecision};
+  return {symbol:position.symbol,quantity:Number(position.quantity)||null,avgEntry:stop.avg,currentPrice:stop.price,profitPct:stop.profit,highestSinceEntry:stop.high,initialStop:stop.initial,currentStop:stop.current,trailingStopStatus:stop.status,weaknessMatchCount:weaknessMatches,weaknessEvidence:weakness.map(conditionSummary),majorSupport:null,exitRule,finalDecision};
 }
 
 function exitShortReason(report){
@@ -80,7 +80,10 @@ export function buildExitSignalRanking(db,rows,userId){
   return {generatedAt:new Date().toISOString(),evaluatedPositions:items.length,signalCount:actionable.length,items:actionable};
 }
 
-function decisionMessage(report){return [`🚨 ${report.symbol} — ${report.finalState||report.finalDecision}`,report.reason||`Rule: ${report.exitRule}`,report.trigger?`Trigger: ${report.trigger}`:null,report.momentumMatches!==undefined?`Momentum: ${report.momentumMatches}`:null,report.flowMatches!==undefined?`Flow: ${report.flowMatches}`:null,report.currentPrice?`قیمت: ${Math.round(report.currentPrice).toLocaleString('fa-IR')} ریال`:null,'این پیام سفارش خودکار نیست.'].filter(Boolean).join('\n');}
+function decisionMessage(report){
+  const state=report.finalState||report.finalDecision,exit=['SELL_ALL','STRUCTURAL_SELL_ALL','TAKE_PROFIT','REDUCE_POSITION'].includes(state),icon=['SELL_ALL','STRUCTURAL_SELL_ALL'].includes(state)?'⛔':exit?'🔴':'🟢',labels={BUY_NOW:'خرید',BUY_CANDIDATE:'کاندید خرید',SELL_ALL:'فروش کامل',STRUCTURAL_SELL_ALL:'خروج ساختاری',TAKE_PROFIT:'سیو سود پله‌ای',REDUCE_POSITION:'کاهش موقعیت'};
+  return [`${icon} ${report.symbol} — ${labels[state]||state}`,report.reason||report.exitRule,report.trigger?`وضعیت شرط ورود: ${report.trigger}`:null,report.momentumMatches!==undefined?`تأیید مومنتوم: ${report.momentumMatches} مورد`:null,report.flowMatches!==undefined?`تأیید حجم و پول: ${report.flowMatches} مورد`:null,report.order?.quantity?`تعداد پیشنهادی: ${Number(report.order.quantity).toLocaleString('fa-IR')} سهم`:exit&&report.quantity?`موجودی: ${Number(report.quantity).toLocaleString('fa-IR')} سهم`:null,report.order?.limitPrice?`قیمت سفارش: ${Number(report.order.limitPrice).toLocaleString('fa-IR')} ریال`:null,report.currentPrice?`قیمت فعلی: ${Math.round(report.currentPrice).toLocaleString('fa-IR')} ریال`:null,report.stop?`حد زیان: ${Number(report.stop).toLocaleString('fa-IR')} ریال`:report.currentStop?`حد توقف: ${Math.round(report.currentStop).toLocaleString('fa-IR')} ریال`:null,report.target1?`هدف اول: ${Number(report.target1).toLocaleString('fa-IR')} ریال`:null].filter(Boolean).join('\n');
+}
 
 export class StrategyDecisionEngine{
   constructor(config,db,marketData,runtime){this.config=config;this.db=db;this.marketData=marketData;this.runtime=runtime;this.lastRunAt=null;this.lastError=null;}

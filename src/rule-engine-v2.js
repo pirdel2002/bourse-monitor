@@ -5,6 +5,9 @@ import {isMarketWindow} from './schedule.js';
 const finite=value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value));
 const sellActions=new Set(['SELL_ALERT','PARTIAL_PROFIT','PROFIT_REVIEW','EXIT_ALERT','MOVE_STOP','TRAILING_STOP']);
 const fa=value=>finite(value)?Number(value).toLocaleString('fa-IR',{maximumFractionDigits:2}):'داده ناکافی';
+const severityLabels={INFO:'اطلاع بازار',WATCH:'پایش',BUY:'فرصت خرید',STRONG_BUY:'خرید قوی',WARNING:'هشدار',SELL:'فروش',EXIT:'خروج فوری'};
+const actionLabels={ALERT:'اطلاع',BUY_ALERT:'خرید',SELL_ALERT:'فروش',PARTIAL_PROFIT:'سیو سود پله‌ای',PROFIT_REVIEW:'بازبینی سود',EXIT_ALERT:'فروش کامل',CANCEL_ORDER:'لغو سفارش',MOVE_STOP:'جابجایی حد زیان',TRAILING_STOP:'حد زیان متحرک'};
+const alertIcon=(severity,action)=>action==='EXIT_ALERT'||severity==='EXIT'?'⛔':sellActions.has(action)||severity==='SELL'?'🔴':action==='BUY_ALERT'||['BUY','STRONG_BUY'].includes(severity)?'🟢':severity==='WARNING'?'⚠️':severity==='WATCH'?'👁️':'ℹ️';
 const get=(context,key)=>key.split('.').reduce((value,part)=>value?.[part],context);
 const result=(active,description,values={})=>({state:active?'active':'inactive',description,values});
 const insufficient=description=>({state:'insufficient',description,values:{}});
@@ -166,7 +169,7 @@ export class RuleEngineV2{
         const buySeverity=['BUY','STRONG_BUY'].includes(rule.severity);
         const effectiveSeverity=riskOff&&rule.severity==='STRONG_BUY'?'BUY':riskOff&&rule.severity==='BUY'?'WATCH':rule.severity;
         let sent=false;
-        if(notify){const message=executable?`${order.text}\n\n${rule.name}\nقیمت تابلو: ${fa(context.current?.price)} ریال\nاین پیام سفارش خودکار نیست.`:this.formatAlert(rule,context,evaluated,effectiveSeverity,riskOff&&buySeverity);
+        if(notify){const message=executable?`${order.text}\n\n${rule.name}\nقیمت تابلو: ${fa(context.current?.price)} ریال`:this.formatAlert(rule,context,evaluated,effectiveSeverity,riskOff&&buySeverity);
           const targets=rule.visibility==='GLOBAL'?this.runtime.telegramTargetsForUsers(this.db.subscribedUserIds(rule.id)):this.runtime.telegramTargets(rule.user_id),delivery=await sendTelegramMany(targets,message);sent=!delivery.skipped;}
         if(notify&&executable&&!sent)evaluated.state='insufficient';
         if(sent&&executable&&order.side==='خرید')this.db.setDataState(`account:reservations${accountSuffix}`,{
@@ -178,5 +181,5 @@ export class RuleEngineV2{
       this.lastRunAt=new Date().toISOString();this.lastError=null;return {rules:rules.length,riskOff,results,...(includeSnapshot?{snapshot:{rows,market,contexts,riskOff}}:{})};
     }catch(error){this.lastError=error.message;throw error;}finally{this.running=false;}
   }
-  formatAlert(rule,context,evaluation,effectiveSeverity=rule.severity,downgraded=false){const evidence=[];const walk=node=>{if(node.description&&node.type!=='group')evidence.push(`• ${node.description}`);(node.children||[]).forEach(walk);};walk(evaluation);const c=context.current||{},custom=rule.actionParams?.message,priority=rule.actionParams?.priority,requestedQuantity=rule.actionParams?.quantityMode==='portfolio'?context.portfolio?.quantity:rule.actionParams?.quantity,quantity=Number(requestedQuantity);return [`🚨 ${rule.symbol||'کل بازار'}`,custom||rule.name,priority?`اولویت: ${priority}`:null,`شدت: ${effectiveSeverity}`,`اقدام: ${rule.action}`,Number.isInteger(quantity)&&quantity>0?`تعداد پیشنهادی: ${fa(quantity)} سهم`:null,downgraded?'⚠️ هشدار خرید به‌علت وضعیت ریسک بازار یک سطح کاهش یافت.':null,finite(c.price)?`آخرین قیمت: ${fa(c.price)} ریال`:null,finite(c.close)?`قیمت پایانی: ${fa(c.close)} ریال`:null,'',...evidence.slice(0,8),'','این پیام تصمیم‌یار است و سفارش واقعی ثبت نشده است.'].filter(x=>x!=null).join('\n');}
+  formatAlert(rule,context,evaluation,effectiveSeverity=rule.severity,downgraded=false){const evidence=[];const walk=node=>{if(node.description&&node.type!=='group')evidence.push(`• ${node.description}`);(node.children||[]).forEach(walk);};walk(evaluation);const c=context.current||{},params=rule.actionParams||{},custom=params.message,priority=params.priority,requestedQuantity=params.quantityMode==='portfolio'?context.portfolio?.quantity:params.quantity,quantity=Number(requestedQuantity),rangeLow=params.priceMin??params.suggestedBuyLow??params.sellPriceLow,rangeHigh=params.priceMax??params.suggestedBuyHigh??params.sellPriceHigh,hasRange=finite(rangeLow)&&finite(rangeHigh);return [`${alertIcon(effectiveSeverity,rule.action)} ${rule.symbol||'کل بازار'} — ${severityLabels[effectiveSeverity]||effectiveSeverity}`,custom||rule.name,priority?`اولویت: ${priority}`:null,`اقدام: ${actionLabels[rule.action]||rule.action}`,Number.isInteger(quantity)&&quantity>0?`تعداد پیشنهادی: ${fa(quantity)} سهم`:null,hasRange?`محدوده پیشنهادی: ${fa(rangeLow)} تا ${fa(rangeHigh)} ریال`:null,downgraded?'⚠️ به‌علت ریسک بالای بازار، اعتبار سیگنال خرید یک سطح کاهش یافت.':null,finite(c.price)?`آخرین قیمت: ${fa(c.price)} ریال`:null,finite(c.close)?`قیمت پایانی: ${fa(c.close)} ریال`:null,evidence.length?'دلایل فعال‌شدن:':null,...evidence.slice(0,8)].filter(x=>x!=null).join('\n');}
 }

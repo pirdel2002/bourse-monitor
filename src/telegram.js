@@ -1,17 +1,18 @@
-const actionLabels={BUY:'خرید',AVERAGE_DOWN:'میانگین کم‌کردن',SELL_STOP_LOSS:'فروش در حد زیان',SELL_TAKE_PROFIT:'فروش برای سیو سود'};
+const actionLabels={BUY:'خرید',AVERAGE_DOWN:'خرید پله‌ای',SELL_STOP_LOSS:'فروش در حد زیان',SELL_TAKE_PROFIT:'فروش برای سیو سود'};
+const actionIcons={BUY:'🟢',AVERAGE_DOWN:'🟡',SELL_STOP_LOSS:'⛔',SELL_TAKE_PROFIT:'🔴'};
 const fa=value=>Number(value||0).toLocaleString('fa-IR',{maximumFractionDigits:2});
 
 export function formatMonitorAlert(monitor,snapshot,result){
   const amountToman=Math.round(Number(monitor.quantity)*Number(monitor.proposedPrice)/10);
   const evidence=[]; const walk=node=>{if(node.description&&node.rule)evidence.push(`• ${node.description}`);(node.children||[]).forEach(walk);}; walk(result);
+  const label=actionLabels[monitor.actionType]||monitor.actionType,icon=actionIcons[monitor.actionType]||'👁️';
   return [
-    `🚨 شرط ${actionLabels[monitor.actionType]||monitor.actionType} فعال شد`,
-    `نماد: ${monitor.symbol}`,
-    `عنوان: ${monitor.title}`,
+    `${icon} ${monitor.symbol} — زمان اقدام رسیده است`,
+    monitor.title,
     '',
-    `اقدام پیشنهادی: ${actionLabels[monitor.actionType]||monitor.actionType}`,
+    `اقدام: ${label}`,
     `تعداد: ${fa(monitor.quantity)} سهم`,
-    `قیمت پیشنهادی: ${fa(monitor.proposedPrice)} ریال`,
+    `قیمت سفارش: ${fa(monitor.proposedPrice)} ریال`,
     `مبلغ تقریبی: ${fa(amountToman)} تومان`,
     monitor.maxAmountToman?`سقف تعیین‌شده: ${fa(monitor.maxAmountToman)} تومان`:null,
     '',
@@ -20,9 +21,7 @@ export function formatMonitorAlert(monitor,snapshot,result){
     Number.isFinite(snapshot.buyerPower)?`قدرت خریدار: ${fa(snapshot.buyerPower)}`:null,
     Number.isFinite(snapshot.bidAskRatio)?`نسبت تقاضا به عرضه: ${fa(snapshot.bidAskRatio)}`:null,
     evidence.length?'شواهد:':null,
-    ...evidence,
-    '',
-    'این پیام تصمیم‌یار است. سفارش واقعی ثبت نشده است.'
+    ...evidence
   ].filter(x=>x!==null).join('\n');
 }
 
@@ -47,5 +46,6 @@ export async function sendTelegramMany(configs,text){
 export async function sendMonitorAlertMany(configs,monitor,snapshot,result){return sendTelegramMany(configs,formatMonitorAlert(monitor,snapshot,result));}
 
 export function formatSignal(signal){
-  return [`📊 ${signal.symbol} — ${signal.action}`,`امتیاز: ${signal.score}/100`,`قیمت: ${fa(signal.price)}`,signal.stopLoss?`حد زیان پیشنهادی: ${fa(signal.stopLoss)}`:null,signal.takeProfit?`هدف اولیه: ${fa(signal.takeProfit)}`:null].filter(Boolean).join('\n');
+  const icon=/SELL|EXIT/.test(String(signal.action))?'🔴':/BUY/.test(String(signal.action))?'🟢':'👁️';
+  return [`${icon} ${signal.symbol} — ${signal.action}`,`امتیاز: ${signal.score}/100`,`قیمت: ${fa(signal.price)}`,signal.stopLoss?`حد زیان پیشنهادی: ${fa(signal.stopLoss)}`:null,signal.takeProfit?`هدف اولیه: ${fa(signal.takeProfit)}`:null].filter(Boolean).join('\n');
 }
