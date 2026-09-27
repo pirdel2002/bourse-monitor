@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check public/app.js && node --test"
+    "check": "node --check src/server.js && node --check public/app.js && node --test",
+    "validate:opportunity": "node scripts/compare-opportunity-v2.js"
   },
   "engines": {
     "node": ">=22.5"
