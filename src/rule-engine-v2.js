@@ -134,11 +134,12 @@ function addMarketHistory(context,history,now=new Date()){
 
 export class RuleEngineV2{
   constructor(config,db,marketData,runtime){this.config=config;this.db=db;this.marketData=marketData;this.runtime=runtime;this.running=false;this.lastRunAt=null;this.lastError=null;}
-  async run({includeSnapshot=false,onlyFinalClose=false,forceMarketData=false}={}){
+  async run({includeSnapshot=false,onlyFinalClose=false,forceMarketData=false,manual=false,userId=null}={}){
     if(this.running)return {skipped:true};this.running=true;
     try{
-      const rules=this.db.dueRulesV2().filter(rule=>Boolean(rule.actionParams?.finalCloseOnly)===Boolean(onlyFinalClose));if(!rules.length)return {rules:0,results:[]};
-      const rows=await this.marketData.marketRows({force:forceMarketData}),index=rules.some(rule=>rule.scope==='MARKET')&&typeof this.marketData.marketIndex==='function'?await this.marketData.marketIndex({force:forceMarketData}):null;
+      const stamp=new Date().toISOString(),rules=(manual?this.db.listRulesV2({userId,includeGlobal:false}).filter(rule=>rule.enabled&&rule.status==='active'&&(!rule.startAt||rule.startAt<=stamp)&&(!rule.endAt||rule.endAt>=stamp)):this.db.dueRulesV2().filter(rule=>Boolean(rule.actionParams?.finalCloseOnly)===Boolean(onlyFinalClose)));if(!rules.length)return {rules:0,active:0,sent:0,results:[]};
+      let rows;try{rows=await this.marketData.marketRows({force:forceMarketData});}catch(error){if(!manual)throw error;rows=this.db.allSymbolDetails();if(!rows.length)throw error;}
+      const index=rules.some(rule=>rule.scope==='MARKET')&&typeof this.marketData.marketIndex==='function'?await this.marketData.marketIndex({force:forceMarketData}):null;
       const bySymbol=new Map(rows.map(x=>[x.symbol,x])),now=new Date(),history=this.db.marketSnapshotHistory();
       const market=addMarketHistory(buildMarketContext(rows,index),history,now);
       const market15m=this.db.marketContextBefore(new Date(now.getTime()-15*60000).toISOString(),new Date(now.getTime()-20*60000).toISOString())||{};
@@ -160,12 +161,12 @@ export class RuleEngineV2{
         const activePosition=Number(context.portfolio?.quantity)>0&&Number(context.portfolio?.avg_price)>0;
         if(sellActions.has(rule.action)&&!activePosition){evaluated.state='insufficient';evaluated.description='این نماد در سبد فعال تعریف نشده است؛ هشدار فروش ارسال نمی‌شود.';}
         // An active analysis without a valid order is not an actionable signal.
-        if(executable&&(!order||(riskOff&&rule.action==='BUY_ALERT')||!isMarketWindow(this.config.marketSchedule||{timeZone:'Asia/Tehran',start:'09:00',end:'12:30'},now))&&evaluated.state==='active')evaluated.state='insufficient';
+        if(executable&&(!order||(riskOff&&rule.action==='BUY_ALERT')||(!manual&&!isMarketWindow(this.config.marketSchedule||{timeZone:'Asia/Tehran',start:'09:00',end:'12:30'},now)))&&evaluated.state==='active')evaluated.state='insufficient';
         const state=this.db.ruleStateV2(rule.id),transition=evaluated.state==='active'&&state?.state==='inactive';
         const tehranDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(now);
         const cooldownOk=!state?.last_notified_at||Date.now()-Date.parse(state.last_notified_at)>=rule.cooldownMinutes*60000;
         const dayOk=!rule.oncePerDay||state?.last_triggered_day!==tehranDay;
-        const notify=transition&&cooldownOk&&dayOk&&rule.actionParams?.silent!==true;
+        const notify=(manual?evaluated.state==='active':transition&&cooldownOk&&dayOk)&&rule.actionParams?.silent!==true;
         const buySeverity=['BUY','STRONG_BUY'].includes(rule.severity);
         const effectiveSeverity=riskOff&&rule.severity==='STRONG_BUY'?'BUY':riskOff&&rule.severity==='BUY'?'WATCH':rule.severity;
         let sent=false;
@@ -176,10 +177,16 @@ export class RuleEngineV2{
           cashUpdatedAt:savedCash.updatedAt,totalToman:reservedToman+order.amountToman
         });
         this.db.recordRuleResultV2(rule,evaluated,context,sent,notify?tehranDay:null,effectiveSeverity);
-        results.push({ruleId:rule.ruleId,state:evaluated.state,effectiveSeverity,telegramSent:sent});
+        results.push({ruleId:rule.ruleId,state:evaluated.state,effectiveSeverity,notificationTriggered:notify,telegramSent:sent});
       }
-      this.lastRunAt=new Date().toISOString();this.lastError=null;return {rules:rules.length,riskOff,results,...(includeSnapshot?{snapshot:{rows,market,contexts,riskOff}}:{})};
+      this.lastRunAt=new Date().toISOString();this.lastError=null;return {rules:rules.length,active:results.filter(x=>x.state==='active').length,sent:results.filter(x=>x.telegramSent).length,riskOff,results,...(includeSnapshot?{snapshot:{rows,market,contexts,riskOff}}:{})};
     }catch(error){this.lastError=error.message;throw error;}finally{this.running=false;}
+  }
+  async testRule(rule,userId){
+    const rows=this.db.allSymbolDetails(),row=rule.symbol?this.db.symbolDetail(rule.symbol):null,now=new Date(),market=addMarketHistory(buildMarketContext(rows),this.db.marketSnapshotHistory(),now);
+    const context=rule.scope==='MARKET'?{market,current:market,previous:this.db.previousMarketContext()||{}}:{current:{price:row?.lastPrice??null,close:row?.closePrice??null},previous:{},liveHistory:[],portfolio:this.db.portfolioPosition(rule.symbol,userId),market};
+    const evaluation=evaluateRuleExpression(rule.expression,context),message=`🧪 پیام آزمایشی قانون\n\n${this.formatAlert(rule,context,evaluation,rule.severity,false)}`,delivery=await sendTelegramMany(this.runtime.telegramTargets(userId),message);
+    return {ok:true,sent:Number(delivery.sent||0),skipped:Boolean(delivery.skipped)};
   }
   formatAlert(rule,context,evaluation,effectiveSeverity=rule.severity,downgraded=false){const evidence=[];const walk=node=>{if(node.description&&node.type!=='group')evidence.push(`• ${node.description}`);(node.children||[]).forEach(walk);};walk(evaluation);const c=context.current||{},params=rule.actionParams||{},custom=params.message,priority=params.priority,requestedQuantity=params.quantityMode==='portfolio'?context.portfolio?.quantity:params.quantity,quantity=Number(requestedQuantity),rangeLow=params.priceMin??params.suggestedBuyLow??params.sellPriceLow,rangeHigh=params.priceMax??params.suggestedBuyHigh??params.sellPriceHigh,hasRange=finite(rangeLow)&&finite(rangeHigh);return [`${alertIcon(effectiveSeverity,rule.action)} ${rule.symbol||'کل بازار'} — ${severityLabels[effectiveSeverity]||effectiveSeverity}`,custom||rule.name,priority?`اولویت: ${priority}`:null,`اقدام: ${actionLabels[rule.action]||rule.action}`,Number.isInteger(quantity)&&quantity>0?`تعداد پیشنهادی: ${fa(quantity)} سهم`:null,hasRange?`محدوده پیشنهادی: ${fa(rangeLow)} تا ${fa(rangeHigh)} ریال`:null,downgraded?'⚠️ به‌علت ریسک بالای بازار، اعتبار سیگنال خرید یک سطح کاهش یافت.':null,finite(c.price)?`آخرین قیمت: ${fa(c.price)} ریال`:null,finite(c.close)?`قیمت پایانی: ${fa(c.close)} ریال`:null,evidence.length?'دلایل فعال‌شدن:':null,...evidence.slice(0,8)].filter(x=>x!=null).join('\n');}
 }
