@@ -17,8 +17,11 @@ test('CSV retains analysis, debug and dual-entry fields after table simplificati
   for(const field of ['PrimarySetupType','MatchedSetupTypes','Momentum Gate','Flow Gate','Price Gate','PullbackBuyLow','PullbackRewardRisk','BreakoutMaxPrice','BreakoutRewardRisk','MissingConditions','InternalFlags'])assert.equal(app.includes(`'${field}'`),true,field);
 });
 
-test('state filter includes current and legacy states with clear labels',()=>{
-  for(const state of ['PULLBACK_ENTRY','EARLY_ENTRY','BREAKOUT_ENTRY','SECOND_ENTRY_CANDIDATE','BUY_CANDIDATE','WAIT_FOR_TRIGGER','WAIT_FOR_BREAKOUT_CONFIRMATION','WAIT_FOR_PULLBACK_OR_BREAKOUT','WAIT_FOR_PULLBACK','WAIT_FOR_RISK_REWARD','WAIT_FOR_RISK_DATA','RULE_WATCH','SECONDARY_WATCH','REJECT'])assert.equal(html.includes(`value="${state}"`),true,state);
+test('hierarchical state filter preserves legacy statuses and typed parent tokens',()=>{
+  for(const state of ['PULLBACK_ENTRY','EARLY_ENTRY','BREAKOUT_ENTRY','SECOND_ENTRY_CANDIDATE','BUY_CANDIDATE','WAIT_FOR_TRIGGER','WAIT_FOR_BREAKOUT_CONFIRMATION','WAIT_FOR_PULLBACK_OR_BREAKOUT','WAIT_FOR_PULLBACK','WAIT_FOR_RISK_REWARD','WAIT_FOR_RISK_DATA','RULE_WATCH','SECONDARY_WATCH','REJECT'])assert.equal(app.includes(state),true,state);
+  assert.match(app,/typeof x==='string'\?\{type:'status',value:x\}/);
+  assert.match(app,/data-filter-type="stage"/);assert.match(app,/data-filter-type="status"/);
+  assert.match(app,/opportunityFilterTokens\.filter/);
   assert.match(app,/BUY_CANDIDATE:'کاندید؛ هنوز بدون ورود'/);
   assert.match(app,/SECONDARY_WATCH:'پایش ثانویه'/);
 });
@@ -56,9 +59,9 @@ test('system monitor switches are separate from manual rule cards',()=>{
   assert.match(app,/items\.filter\(x=>x\.visibility!==\'GLOBAL\'\)/);
 });
 
-test('V2 ranking modes and exit CSV are available',()=>{
-  for(const mode of ['ALL_OPPORTUNITIES','EARLY_MOVE','NEXT_LEG','BREAKOUT','PORTFOLIO_SECOND_ENTRY'])assert.match(html,new RegExp(`value="${mode}"`));
+test('V2.3 ranking modes and exit CSV are available',()=>{
+  for(const mode of ['PRE_MOVE','ALL_OPPORTUNITIES','EARLY_MOVE','NEXT_LEG','BREAKOUT','PORTFOLIO_SECOND_ENTRY'])assert.match(html,new RegExp(`value="${mode}"`));
   for(const field of ['AdjustedOpportunityV2','FreshnessScore','RawExtensionPenalty','NetExtensionPenalty','FlowDivergence'])assert.equal(app.includes(field),true,field);
-  assert.match(html,/value="EARLY_MOVE" selected/);
+  assert.match(html,/value="PRE_MOVE" selected/);
   assert.match(html,/id="downloadExitCsv"/);assert.match(app,/function downloadExitCsv/);
 });
