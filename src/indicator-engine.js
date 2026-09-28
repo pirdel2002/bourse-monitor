@@ -49,23 +49,25 @@ export function makeLiveCandle(row){
   return normalizeCandle({date:row.date||new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tehran'}).format(new Date()),open:row.openPrice||close,high:row.dayHigh||Math.max(row.openPrice||close,close),low:row.dayLow||Math.min(row.openPrice||close,close),close,volume:row.volume});
 }
 
-export function detectConsolidation(candlesInput,atrInput=[],bbwInput=[]){
-  const candles=(candlesInput||[]).map(normalizeCandle).filter(x=>x.close>0&&x.high>0&&x.low>0);
-  let best={consolidation_bars:0,consolidation_range_pct:null,consolidation_score:0,atr_compression_ratio:null,range_compression_ratio:null,recent_consolidation:false};
-  for(let size=5;size<=Math.min(20,candles.length-5);size++){
-    const recent=candles.slice(-size),previous=candles.slice(-Math.min(candles.length,size*2),-size);
-    if(previous.length<5)continue;
-    const highest=Math.max(...recent.map(x=>x.high)),lowest=Math.min(...recent.map(x=>x.low)),mid=(highest+lowest)/2;
-    const prevHigh=Math.max(...previous.map(x=>x.high)),prevLow=Math.min(...previous.map(x=>x.low)),prevMid=(prevHigh+prevLow)/2;
-    const rangePct=mid>0?(highest-lowest)/mid*100:null,previousRangePct=prevMid>0?(prevHigh-prevLow)/prevMid*100:null,rangeRatio=finite(rangePct)&&finite(previousRangePct)&&previousRangePct>0?rangePct/previousRangePct:null;
-    const recentAtr=atrInput.slice(-size).filter(finite),previousAtr=atrInput.slice(-Math.min(atrInput.length,size*2),-size).filter(finite),atrRatio=recentAtr.length&&previousAtr.length?mean(recentAtr)/mean(previousAtr):null;
-    const recentBbw=bbwInput.slice(-size).filter(finite),previousBbw=bbwInput.slice(-Math.min(bbwInput.length,size*2),-size).filter(finite),bbwRatio=recentBbw.length&&previousBbw.length?mean(recentBbw)/mean(previousBbw):null;
-    const supportPreserved=recent.every((bar,index)=>index===0||bar.low>=lowest*.995),noBreakdown=recent.slice(1).every((bar,index)=>bar.low>=Math.min(...recent.slice(0,index+1).map(x=>x.low))*.97);
-    const score=clampScore((finite(rangeRatio)?Math.max(0,Math.min(30,(1.25-rangeRatio)/.75*30)):0)+(finite(atrRatio)?Math.max(0,Math.min(20,(1.2-atrRatio)/.6*20)):0)+(finite(bbwRatio)?Math.max(0,Math.min(20,(1.2-bbwRatio)/.6*20)):0)+(supportPreserved?15:0)+(noBreakdown?15:0));
-    const qualifies=score>=60&&finite(rangePct)&&rangePct<=5;
-    if(qualifies&&(size>best.consolidation_bars||score>best.consolidation_score+10))best={consolidation_bars:size,consolidation_range_pct:round(rangePct),consolidation_score:round(score),atr_compression_ratio:round(atrRatio),range_compression_ratio:round(rangeRatio),recent_consolidation:true};
+const ratioScore=(value,steps)=>{if(!finite(value))return null;for(const [limit,score] of steps)if(Number(value)<=limit)return score;return steps.at(-1)[1];};
+const averageWindow=(series,start,end)=>{const values=series.slice(start,end).filter(finite);return values.length?mean(values):null;};
+
+export function detectConsolidation(candlesInput,atrInput=[],bbwInput=[],options={}){
+  const candles=(candlesInput||[]).map(normalizeCandle).filter(x=>x.close>0&&x.high>0&&x.low>0),windows=[5,6,7,8,9,10,12,14,16,18,20],candidates=[];
+  for(const size of windows){
+    if(candles.length<size*2)continue;const start=candles.length-size,previousStart=start-size,recent=candles.slice(start),previous=candles.slice(previousStart,start),highest=Math.max(...recent.map(x=>x.high)),lowest=Math.min(...recent.map(x=>x.low)),mid=(highest+lowest)/2;if(mid<=0)continue;
+    const previousHigh=Math.max(...previous.map(x=>x.high)),previousLow=Math.min(...previous.map(x=>x.low)),recentRange=highest-lowest,previousRange=previousHigh-previousLow,rangeRatio=previousRange>0?recentRange/previousRange:null,rangePct=recentRange/mid*100;
+    const atrRecent=averageWindow(atrInput,start,candles.length),atrBefore=averageWindow(atrInput,previousStart,start),atrRatio=finite(atrRecent)&&finite(atrBefore)&&atrBefore>0?atrRecent/atrBefore:null,bbwRecent=averageWindow(bbwInput,start,candles.length),bbwBefore=averageWindow(bbwInput,previousStart,start),bbwRatio=finite(bbwRecent)&&finite(bbwBefore)&&bbwBefore>0?bbwRecent/bbwBefore:null;
+    const rangeScore=ratioScore(rangeRatio,[[.6,100],[.75,85],[.9,70],[1,55],[1.1,35],[Infinity,10]]),atrScore=ratioScore(atrRatio,[[.7,100],[.85,85],[1,70],[1.1,50],[1.25,25],[Infinity,5]]),bbwScore=finite(bbwRatio)?ratioScore(bbwRatio,[[.7,100],[.85,85],[1,70],[1.1,45],[Infinity,20]]):ratioScore(options.bbwPercentile,[[10,100],[20,85],[30,70],[50,45],[Infinity,20]]);
+    const tolerance=(Number(options.supportBreakTolerancePct)||1.5)/100,last=recent.at(-1),closesAboveBase=recent.filter(x=>x.close>=lowest*(1+tolerance/3)).length/recent.length,supportPreserved=last.close>=lowest*(1-tolerance)&&closesAboveBase>=.7&&(!finite(options.ema50)||last.close>=Number(options.ema50)*(1-tolerance));
+    const avgAtr=finite(atrRecent)?atrRecent:mean(recent.map(x=>x.high-x.low)),largeBearishBreak=recent.some((bar,index)=>index>0&&bar.close<recent[index-1].low*(1-tolerance)&&bar.open-bar.close>avgAtr*1.8),noStructuralBreak=options.structureValid!==false&&!largeBearishBreak&&last.close>=lowest*(1-tolerance);
+    const components=[['RANGE',rangeScore,30],['ATR',atrScore,20],['BBW',bbwScore,20],['SUPPORT',supportPreserved?100:0,15],['STRUCTURE',noStructuralBreak?100:0,15]],available=components.filter(([,score])=>finite(score)),availableWeight=available.reduce((sum,row)=>sum+row[2],0),score=availableWeight?available.reduce((sum,[,value,weight])=>sum+value*weight/100,0)/availableWeight*100:0;
+    const directionalMovePct=Math.abs(last.close-recent[0].close)/mid*100,half=Math.floor(recent.length/2),firstHalfMean=mean(recent.slice(0,half).map(x=>x.close)),secondHalfMean=mean(recent.slice(half).map(x=>x.close)),halfMeanShiftPct=Math.abs(secondHalfMean-firstHalfMean)/mid*100,firstHalfAtr=averageWindow(atrInput,start,start+half),secondHalfAtr=averageWindow(atrInput,start+half,candles.length),internalAtrRegimeRatio=finite(firstHalfAtr)&&finite(secondHalfAtr)&&Math.min(firstHalfAtr,secondHalfAtr)>0?Math.max(firstHalfAtr,secondHalfAtr)/Math.min(firstHalfAtr,secondHalfAtr):null,coherent=directionalMovePct<=Math.max(2.5,rangePct*.5)&&halfMeanShiftPct<=Math.max(1.25,rangePct*.12)&&(!finite(internalAtrRegimeRatio)||internalAtrRegimeRatio<=2.5);
+    candidates.push({size,score,rangePct,rangeRatio,rangeScore,atrRatio,atrScore,bbwRatio,bbwScore,supportPreserved,noStructuralBreak,coherent,directionalMovePct,halfMeanShiftPct,internalAtrRegimeRatio,available:available.map(x=>x[0]),missing:components.filter(([,value])=>!finite(value)).map(x=>x[0])});
   }
-  return best;
+  if(!candidates.length)return {recent_consolidation:false,consolidation_bars:0,consolidation_score:0,consolidation_range_pct:null,consolidation_best_score:0,consolidation_best_window:0,consolidation_selected_window:0,consolidation_available_components:[],consolidation_missing_components:['RANGE','ATR','BBW','SUPPORT','STRUCTURE']};
+  const best=candidates.reduce((a,b)=>b.score>a.score?b:a),coherentCandidates=candidates.filter(x=>x.coherent&&x.supportPreserved&&x.noStructuralBreak),bestCoherent=coherentCandidates.length?coherentCandidates.reduce((a,b)=>b.score>a.score?b:a):null,nearBest=bestCoherent?coherentCandidates.filter(x=>x.score>=60&&x.score>=bestCoherent.score-10):[],selected=nearBest.length?nearBest.reduce((a,b)=>b.size>a.size?b:a):best,detected=nearBest.length>0;
+  return {recent_consolidation:detected,consolidation_detected:detected,consolidation_bars:selected.size,consolidation_score:round(selected.score),consolidation_range_pct:round(selected.rangePct),range_compression_ratio:round(selected.rangeRatio),range_contraction_score:round(selected.rangeScore),atr_compression_ratio:round(selected.atrRatio),atr_compression_score:round(selected.atrScore),bbw_compression_ratio:round(selected.bbwRatio),bbw_compression_score:round(selected.bbwScore),support_preserved:selected.supportPreserved,no_structural_break:selected.noStructuralBreak,consolidation_best_score:round(best.score),consolidation_best_window:best.size,consolidation_selected_window:selected.size,consolidation_available_components:selected.available,consolidation_missing_components:selected.missing};
 }
 
 function clampScore(value){return Math.max(0,Math.min(100,value));}
@@ -91,7 +93,7 @@ export function buildIndicatorAnalysis(history,liveRow=null){
   const previousSegment=candles.slice(-41,-21),high40PreviousSegment=previousSegment.length?Math.max(...previousSegment.map(x=>x.high)):null;
   const recentRange=candles.slice(-10),previousRange=candles.slice(-20,-10),rangePct=items=>items.length&&last>0?(Math.max(...items.map(x=>x.high))-Math.min(...items.map(x=>x.low)))/last*100:null,range10Pct=rangePct(recentRange),previousRange10Pct=rangePct(previousRange),rangeCompression10=finite(range10Pct)&&finite(previousRange10Pct)&&previousRange10Pct>0?range10Pct/previousRange10Pct:null;
   const high20=priorHigh(20),recentCorrectionPct=finite(high20)&&high20>0?Math.max(0,(high20-last)/high20*100):null;
-  const consolidation=detectConsolidation(candles,atr,bbwSeries);
+  const consolidation=detectConsolidation(candles,atr,bbwSeries,{ema50,bbwPercentile,structureValid:finite(high20)?last>=high20*.8:true});
   const context={
     price:Number(liveRow?.lastPrice||last),close:last,open:candles.at(-1).open,high:candles.at(-1).high,low:candles.at(-1).low,volume:candles.at(-1).volume,value:Number(liveRow?.tradeValue||0),trade_count:Number(liveRow?.tradeCount||0),
     ema20:round(ema20),ema20_prev1:round(ema20Prev),ema50:round(ema50),ema50_prev1:round(ema50Prev),ema20_ema50_gap_pct:round(finite(ema20)&&finite(ema50)&&ema50!==0?Math.abs(ema20-ema50)/ema50*100:null),rsi14:round(rsi14),rsi14_prev1:round(rsiPrev),
