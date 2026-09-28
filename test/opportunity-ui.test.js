@@ -17,13 +17,21 @@ test('CSV retains analysis, debug and dual-entry fields after table simplificati
   for(const field of ['PrimarySetupType','MatchedSetupTypes','Momentum Gate','Flow Gate','Price Gate','PullbackBuyLow','PullbackRewardRisk','BreakoutMaxPrice','BreakoutRewardRisk','MissingConditions','InternalFlags'])assert.equal(app.includes(`'${field}'`),true,field);
 });
 
-test('hierarchical state filter preserves legacy statuses and typed parent tokens',()=>{
+test('multi-dimensional filter preserves legacy and typed tokens',()=>{
   for(const state of ['PULLBACK_ENTRY','EARLY_ENTRY','BREAKOUT_ENTRY','SECOND_ENTRY_CANDIDATE','BUY_CANDIDATE','WAIT_FOR_TRIGGER','WAIT_FOR_BREAKOUT_CONFIRMATION','WAIT_FOR_PULLBACK_OR_BREAKOUT','WAIT_FOR_PULLBACK','WAIT_FOR_RISK_REWARD','WAIT_FOR_RISK_DATA','RULE_WATCH','SECONDARY_WATCH','REJECT'])assert.equal(app.includes(state),true,state);
   assert.match(app,/typeof x==='string'\?\{type:'status',value:x\}/);
-  assert.match(app,/data-filter-type="stage"/);assert.match(app,/data-filter-type="status"/);
+  for(const type of ['stage','preMoveType','status','action'])assert.match(app,new RegExp(`filterSection\\([^\\n]+?'${type}'`));
   assert.match(app,/opportunityFilterTokens\.filter/);
   assert.match(app,/BUY_CANDIDATE:'کاندید؛ هنوز بدون ورود'/);
   assert.match(app,/SECONDARY_WATCH:'پایش ثانویه'/);
+});
+
+test('filter is staged, grouped, mobile-safe and parent selection remains independent',()=>{
+  for(const title of ['مرحله فرصت','نوع موقعیت پیش از حرکت','وضعیت','اقدام'])assert.match(app,new RegExp(title));
+  assert.match(app,/opportunityFilterDraft/);assert.match(app,/commitOpportunityFilters/);assert.match(app,/remove-filter/);
+  assert.match(html,/id="applyOpportunityFilters"/);assert.match(html,/id="clearOpportunityFilters"/);assert.match(html,/role="dialog"/);
+  assert.match(css,/width:min\(540px/);assert.match(css,/z-index:1000/);assert.match(css,/position:fixed;inset:0;top:auto/);assert.match(css,/min-height:48px/);
+  assert.match(app,/FIRST_MOVE_PREP:'آماده حرکت اول'/);assert.match(app,/NEXT_LEG_PREP:'آماده موج بعدی'/);assert.match(app,/REVERSAL_PREP:'آماده برگشت'/);
 });
 
 test('decision table, analysis detail and collapsed debug remain separate',()=>{
